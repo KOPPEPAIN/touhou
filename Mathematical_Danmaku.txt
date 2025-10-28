@@ -1,0 +1,287 @@
+#TouhouDanmakufu[Single]
+#Title["数学的弾幕 - ローズ曲線と黄金螺旋"]
+#Text["数学の美しさを表現した立体弾幕"]
+
+let time = 0;
+let centerX = 192;
+let centerY = 150;
+
+task main {
+    let enemy = ObjEnemy_Create();
+    ObjEnemy_SetPosition(enemy, centerX, centerY);
+    ObjEnemy_SetLife(enemy, 6000);
+    ObjEnemy_SetCollisionA(enemy, 32);
+    ObjEnemy_SetTimer(enemy, 0);
+
+    // 様々な数学的パターンを起動
+    RoseCurve3D(enemy);
+    DNAHelix(enemy);
+    FibonacciSphere(enemy);
+    LissajousCurve3D(enemy);
+    GoldenSpiral(enemy);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        time++;
+        yield;
+    }
+
+    Obj_Delete(enemy);
+}
+
+// 3Dローズ曲線 (r = a * cos(k*θ))
+task RoseCurve3D(enemy) {
+    let phase = 0;
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 6 == 0) {
+            let k = 5; // 花びらの数に関係
+            let numPoints = 60;
+            let layers = 4;
+
+            loop(layers) {
+                let layerZ = (loop_index - layers/2) * 30; // Z軸の層
+
+                loop(numPoints) {
+                    let theta = (loop_index / numPoints) * 360 * k + phase;
+                    let r = 80 * cos(k * theta);
+
+                    // ローズ曲線の座標
+                    let x3d = r * cos(theta);
+                    let y3d = r * sin(theta);
+                    let z3d = layerZ + 20 * sin(theta * 3);
+
+                    // 透視投影
+                    let perspective = 300 / (300 + z3d);
+                    let sx = centerX + x3d * perspective;
+                    let sy = centerY + y3d * perspective * 0.7;
+
+                    let speed = 2.0 + perspective * 0.5;
+                    let angle = atan2(sy - centerY, sx - centerX);
+
+                    // 層によって弾の色を変える
+                    let shotType = 1 + (loop_index % 4);
+                    CreateShotA(sx, sy, speed, angle, shotType, 0);
+                }
+            }
+
+            phase += 3;
+        }
+        yield;
+    }
+}
+
+// DNA二重螺旋構造
+task DNAHelix(enemy) {
+    let t = 0;
+
+    wait(45);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 3 == 0) {
+            let radius = 60;
+            let helixHeight = 150;
+            let numPairs = 8; // 塩基対の数
+
+            loop(numPairs) {
+                let height = (loop_index / numPairs) * helixHeight - helixHeight/2;
+                let angle1 = t + (loop_index / numPairs) * 360;
+                let angle2 = angle1 + 180; // 反対側の螺旋
+
+                // 第一の螺旋
+                let x1 = radius * cos(angle1);
+                let y1 = radius * sin(angle1);
+                let z1 = height;
+
+                // 第二の螺旋
+                let x2 = radius * cos(angle2);
+                let y2 = radius * sin(angle2);
+                let z2 = height;
+
+                // 透視投影 - 第一螺旋
+                let persp1 = 280 / (280 + z1);
+                let sx1 = centerX + x1 * persp1;
+                let sy1 = centerY + y1 * persp1 * 0.65 + z1 * 0.3;
+
+                // 透視投影 - 第二螺旋
+                let persp2 = 280 / (280 + z2);
+                let sx2 = centerX + x2 * persp2;
+                let sy2 = centerY + y2 * persp2 * 0.65 + z2 * 0.3;
+
+                let speed = 1.5;
+                let shotAngle1 = atan2(sy1 - centerY, sx1 - centerX);
+                let shotAngle2 = atan2(sy2 - centerY, sx2 - centerX);
+
+                // 二本の螺旋
+                CreateShotA(sx1, sy1, speed, shotAngle1, 1, 1);
+                CreateShotA(sx2, sy2, speed, shotAngle2, 3, 1);
+
+                // 塩基対の結合を表現（二つの螺旋を結ぶ弾）
+                let bondSteps = 4;
+                loop(bondSteps) {
+                    let bt = loop_index / bondSteps;
+                    let bx = x1 + (x2 - x1) * bt;
+                    let by = y1 + (y2 - y1) * bt;
+                    let bz = height;
+
+                    let bpersp = 280 / (280 + bz);
+                    let bsx = centerX + bx * bpersp;
+                    let bsy = centerY + by * bpersp * 0.65 + bz * 0.3;
+
+                    let bangle = atan2(bsy - centerY, bsx - centerX);
+                    CreateShotA(bsx, bsy, speed * 0.8, bangle, 2, 2);
+                }
+            }
+
+            t += 12;
+        }
+        yield;
+    }
+}
+
+// フィボナッチ球面配置
+task FibonacciSphere(enemy) {
+    let rotation = 0;
+
+    wait(90);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 10 == 0) {
+            let numPoints = 100;
+            let goldenAngle = 137.508; // 黄金角
+
+            loop(numPoints) {
+                let i = loop_index;
+
+                // フィボナッチ球面配置
+                let y = 1 - (i / (numPoints - 1)) * 2;
+                let radiusAtY = sqrt(1 - y * y);
+                let theta = i * goldenAngle + rotation;
+
+                let x = radiusAtY * cos(theta);
+                let z = radiusAtY * sin(theta);
+
+                // スケーリング
+                let scale = 90;
+                let x3d = x * scale;
+                let y3d = y * scale;
+                let z3d = z * scale;
+
+                // 透視投影
+                let perspective = 300 / (300 + z3d);
+                let sx = centerX + x3d * perspective;
+                let sy = centerY + y3d * perspective * 0.7;
+
+                let speed = 1.0 + perspective * 1.5;
+                let angle = atan2(sy - centerY, sx - centerX);
+
+                // 距離に応じて弾のタイプを変える
+                let dist = sqrt(x*x + y*y + z*z);
+                let shotType = 1 + floor(dist * 3);
+                CreateShotA(sx, sy, speed, angle, shotType, 3);
+            }
+
+            rotation += 5;
+        }
+        yield;
+    }
+}
+
+// 3Dリサージュ曲線
+task LissajousCurve3D(enemy) {
+    let t = 0;
+
+    wait(135);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 4 == 0) {
+            let A = 80;
+            let B = 80;
+            let C = 80;
+            let a = 3;
+            let b = 4;
+            let c = 5;
+            let delta1 = 90;
+            let delta2 = 0;
+            let numPoints = 30;
+
+            loop(numPoints) {
+                let phase = (loop_index / numPoints) * 360;
+                let theta = t + phase;
+
+                // 3Dリサージュ曲線
+                let x3d = A * sin(a * theta + delta1);
+                let y3d = B * sin(b * theta);
+                let z3d = C * sin(c * theta + delta2);
+
+                // 透視投影
+                let perspective = 350 / (350 + z3d);
+                let sx = centerX + x3d * perspective;
+                let sy = centerY + y3d * perspective * 0.6;
+
+                let speed = 2.5;
+                let angle = atan2(sy - centerY, sx - centerX);
+
+                let shotType = 1 + (loop_index % 5);
+                CreateShotA(sx, sy, speed, angle, shotType, 4);
+
+                // 軌跡を作るための補助弾
+                if(loop_index % 3 == 0) {
+                    CreateShotA(sx, sy, speed * 0.7, angle, shotType, 4);
+                }
+            }
+
+            t += 5;
+        }
+        yield;
+    }
+}
+
+// 黄金螺旋（対数螺旋）
+task GoldenSpiral(enemy) {
+    let rotation = 0;
+
+    wait(180);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 5 == 0) {
+            let phi = 1.618033988749; // 黄金比
+            let numSpirals = 5;
+            let pointsPerSpiral = 40;
+
+            loop(numSpirals) {
+                let spiralPhase = (loop_index / numSpirals) * 360;
+
+                loop(pointsPerSpiral) {
+                    let i = loop_index;
+                    let theta = i * 15 + rotation + spiralPhase;
+
+                    // 対数螺旋 r = a * e^(b*θ)
+                    let a = 5;
+                    let b = 0.15;
+                    let r = a * (phi ^ (b * theta / 50));
+
+                    // 螺旋の高さ
+                    let height = i * 3 - 60;
+
+                    let x3d = r * cos(theta);
+                    let y3d = r * sin(theta);
+                    let z3d = height;
+
+                    // 透視投影
+                    let perspective = 300 / (300 + z3d);
+                    let sx = centerX + x3d * perspective;
+                    let sy = centerY + y3d * perspective * 0.7;
+
+                    let speed = 1.8;
+                    let angle = theta;
+
+                    let shotType = 1 + (loop_index % 4);
+                    CreateShotA(sx, sy, speed, angle, shotType, 0);
+                }
+            }
+
+            rotation += 8;
+        }
+        yield;
+    }
+}

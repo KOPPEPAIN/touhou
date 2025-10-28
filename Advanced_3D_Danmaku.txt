@@ -1,0 +1,364 @@
+#TouhouDanmakufu[Single]
+#Title["上級立体弾幕 - 波動とフラクタル"]
+#Text["高度な数学関数による芸術的弾幕パターン"]
+
+let time = 0;
+let centerX = 192;
+let centerY = 150;
+let PI = 3.14159265359;
+
+task main {
+    let enemy = ObjEnemy_Create();
+    ObjEnemy_SetPosition(enemy, centerX, centerY);
+    ObjEnemy_SetLife(enemy, 8000);
+    ObjEnemy_SetCollisionA(enemy, 32);
+    ObjEnemy_SetTimer(enemy, 0);
+
+    // 高度な弾幕パターン
+    WaveFunctionCollapse(enemy);
+    MobiusStrip(enemy);
+    KleinBottle(enemy);
+    HyperbolicParaboloid(enemy);
+    SierpinskiTetrahedron(enemy);
+    ChaosAttractor(enemy);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        time++;
+        yield;
+    }
+
+    Obj_Delete(enemy);
+}
+
+// 波動関数の崩壊を表現した弾幕
+task WaveFunctionCollapse(enemy) {
+    let t = 0;
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 7 == 0) {
+            let numWaves = 8;
+            let numParticles = 20;
+
+            loop(numWaves) {
+                let wavePhase = (loop_index / numWaves) * 360;
+
+                loop(numParticles) {
+                    let particleT = loop_index / numParticles;
+
+                    // 波動関数 ψ(x,t) = A * sin(kx - ωt)
+                    let k = 0.05; // 波数
+                    let omega = 0.3; // 角周波数
+                    let amplitude = 60;
+
+                    let x = particleT * 200 - 100;
+                    let waveHeight = amplitude * sin(k * x * 10 - omega * t + wavePhase);
+
+                    // 確率密度 |ψ|²
+                    let probability = abs(waveHeight / amplitude);
+
+                    // 3D位置
+                    let x3d = x * cos(wavePhase) - waveHeight * sin(wavePhase);
+                    let y3d = x * sin(wavePhase) + waveHeight * cos(wavePhase);
+                    let z3d = waveHeight * 0.5;
+
+                    // 透視投影
+                    let perspective = 300 / (300 + z3d);
+                    let sx = centerX + x3d * perspective;
+                    let sy = centerY + y3d * perspective * 0.65;
+
+                    let speed = 1.5 + probability * 1.5;
+                    let angle = atan2(sy - centerY, sx - centerX);
+
+                    // 確率に応じて弾の種類を変える
+                    let shotType = 1 + floor(probability * 3);
+                    CreateShotA(sx, sy, speed, angle, shotType, 0);
+                }
+            }
+
+            t += 0.5;
+        }
+        yield;
+    }
+}
+
+// メビウスの帯
+task MobiusStrip(enemy) {
+    let rotation = 0;
+
+    wait(60);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 8 == 0) {
+            let uSteps = 30; // 帯の長さ方向
+            let vSteps = 3;  // 帯の幅方向
+
+            loop(uSteps) {
+                let u = (loop_index / uSteps) * 360 + rotation;
+
+                loop(vSteps) {
+                    let v = (loop_index / vSteps - 0.5) * 40; // -20 to 20
+
+                    // メビウスの帯のパラメトリック方程式
+                    let radius = 70;
+                    let x3d = (radius + v * cos(u/2)) * cos(u);
+                    let y3d = (radius + v * cos(u/2)) * sin(u);
+                    let z3d = v * sin(u/2);
+
+                    // 透視投影
+                    let perspective = 300 / (300 + z3d);
+                    let sx = centerX + x3d * perspective;
+                    let sy = centerY + y3d * perspective * 0.7;
+
+                    let speed = 2.0;
+                    let angle = atan2(sy - centerY, sx - centerX);
+
+                    let shotType = 1 + (loop_index % 3);
+                    CreateShotA(sx, sy, speed, angle, shotType, 1);
+                }
+            }
+
+            rotation += 6;
+        }
+        yield;
+    }
+}
+
+// クラインの壺（4D→3D投影）
+task KleinBottle(enemy) {
+    let phase = 0;
+
+    wait(120);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 10 == 0) {
+            let uSteps = 20;
+            let vSteps = 15;
+
+            loop(uSteps) {
+                let u = (loop_index / uSteps) * 360;
+
+                loop(vSteps) {
+                    let v = (loop_index / vSteps) * 360 + phase;
+
+                    // クラインの壺の8字形パラメータ化
+                    let r = 4 * (1 - cos(u) / 2);
+                    let scale = 15;
+
+                    let x3d = scale * r * cos(v);
+                    let y3d = scale * r * sin(v);
+                    let z3d = scale * sin(u);
+
+                    // さらに変形を加える
+                    if(u < 180) {
+                        x3d = scale * (6 * cos(u) * (1 + sin(u)) + r * cos(u) * cos(v));
+                        y3d = scale * (16 * sin(u) + r * sin(u) * cos(v));
+                    } else {
+                        x3d = scale * (6 * cos(u) * (1 + sin(u)) - r * cos(v));
+                        y3d = scale * (16 * sin(u));
+                    }
+
+                    // 透視投影
+                    let perspective = 320 / (320 + z3d);
+                    let sx = centerX + x3d * perspective;
+                    let sy = centerY + y3d * perspective * 0.6;
+
+                    let speed = 1.8;
+                    let angle = atan2(sy - centerY, sx - centerX);
+
+                    let shotType = 1 + floor(abs(sin(u)) * 4);
+                    CreateShotA(sx, sy, speed, angle, shotType, 2);
+                }
+            }
+
+            phase += 12;
+        }
+        yield;
+    }
+}
+
+// 双曲放物面（馬の鞍）
+task HyperbolicParaboloid(enemy) {
+    let t = 0;
+
+    wait(180);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 6 == 0) {
+            let gridSize = 11;
+            let spacing = 20;
+
+            loop(gridSize) {
+                let i = loop_index - gridSize/2;
+
+                loop(gridSize) {
+                    let j = loop_index - gridSize/2;
+
+                    // 双曲放物面 z = x²/a² - y²/b²
+                    let a = 40;
+                    let b = 40;
+                    let x = i * spacing;
+                    let y = j * spacing;
+                    let z = (x*x)/(a*a) - (y*y)/(b*b);
+                    z = z * 30;
+
+                    // 回転
+                    let cosT = cos(t);
+                    let sinT = sin(t);
+                    let xr = x * cosT - y * sinT;
+                    let yr = x * sinT + y * cosT;
+
+                    // 透視投影
+                    let perspective = 300 / (300 + z);
+                    let sx = centerX + xr * perspective;
+                    let sy = centerY + yr * perspective * 0.7 + z * 0.1;
+
+                    let speed = 1.5;
+                    let angle = atan2(sy - centerY, sx - centerX);
+
+                    // 高さに応じて色を変える
+                    let shotType = z > 0 ? 1 : 3;
+                    if(abs(z) < 10) { shotType = 2; }
+
+                    CreateShotA(sx, sy, speed, angle, shotType, 3);
+                }
+            }
+
+            t += 3;
+        }
+        yield;
+    }
+}
+
+// シェルピンスキー四面体（フラクタル）
+task SierpinskiTetrahedron(enemy) {
+    let rotation = 0;
+
+    wait(240);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 20 == 0) {
+            // 正四面体の頂点
+            let vertices = [
+                [0, 80, 0],
+                [75, -40, 0],
+                [-37.5, -40, 65],
+                [-37.5, -40, -65]
+            ];
+
+            // フラクタルの深度
+            let depth = 3;
+            SierpinskiRecursive(vertices, depth, rotation, 1.0);
+
+            rotation += 15;
+        }
+        yield;
+    }
+}
+
+// シェルピンスキー四面体の再帰関数
+function SierpinskiRecursive(vertices, depth, rotation, scale) {
+    if(depth == 0) {
+        // 頂点に弾を配置
+        loop(length(vertices)) {
+            let v = vertices[loop_index];
+
+            // 回転
+            let x = v[0] * scale;
+            let y = v[1] * scale;
+            let z = v[2] * scale;
+
+            let cosR = cos(rotation);
+            let sinR = sin(rotation);
+            let xr = x * cosR - z * sinR;
+            let zr = x * sinR + z * cosR;
+
+            // 透視投影
+            let perspective = 300 / (300 + zr);
+            let sx = centerX + xr * perspective;
+            let sy = centerY + y * perspective * 0.7;
+
+            let speed = 2.0;
+            let angle = atan2(sy - centerY, sx - centerX);
+
+            let shotType = 1 + (depth % 4);
+            CreateShotA(sx, sy, speed, angle, shotType, 4);
+
+            // 放射状に弾を発射
+            let numShots = 6;
+            loop(numShots) {
+                let shotAngle = (loop_index / numShots) * 360 + rotation;
+                CreateShotA(sx, sy, speed * 1.2, shotAngle, shotType, 4);
+            }
+        }
+    } else {
+        // 各辺の中点を計算
+        let mid01 = [(vertices[0][0] + vertices[1][0])/2, (vertices[0][1] + vertices[1][1])/2, (vertices[0][2] + vertices[1][2])/2];
+        let mid02 = [(vertices[0][0] + vertices[2][0])/2, (vertices[0][1] + vertices[2][1])/2, (vertices[0][2] + vertices[2][2])/2];
+        let mid03 = [(vertices[0][0] + vertices[3][0])/2, (vertices[0][1] + vertices[3][1])/2, (vertices[0][2] + vertices[3][2])/2];
+        let mid12 = [(vertices[1][0] + vertices[2][0])/2, (vertices[1][1] + vertices[2][1])/2, (vertices[1][2] + vertices[2][2])/2];
+        let mid13 = [(vertices[1][0] + vertices[3][0])/2, (vertices[1][1] + vertices[3][1])/2, (vertices[1][2] + vertices[3][2])/2];
+        let mid23 = [(vertices[2][0] + vertices[3][0])/2, (vertices[2][1] + vertices[3][1])/2, (vertices[2][2] + vertices[3][2])/2];
+
+        // 4つの小さい四面体に分割（中央の四面体は除く）
+        SierpinskiRecursive([vertices[0], mid01, mid02, mid03], depth - 1, rotation, scale);
+        SierpinskiRecursive([vertices[1], mid01, mid12, mid13], depth - 1, rotation, scale);
+        SierpinskiRecursive([vertices[2], mid02, mid12, mid23], depth - 1, rotation, scale);
+        SierpinskiRecursive([vertices[3], mid03, mid13, mid23], depth - 1, rotation, scale);
+    }
+}
+
+// ローレンツアトラクター（カオス理論）
+task ChaosAttractor(enemy) {
+    let x = 0.1;
+    let y = 0;
+    let z = 0;
+
+    wait(300);
+
+    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
+        if(time % 2 == 0) {
+            // ローレンツアトラクターのパラメータ
+            let sigma = 10;
+            let rho = 28;
+            let beta = 8.0 / 3.0;
+            let dt = 0.01;
+
+            // ルンゲ=クッタ法で次の状態を計算
+            let dx = sigma * (y - x);
+            let dy = x * (rho - z) - y;
+            let dz = x * y - beta * z;
+
+            x = x + dx * dt;
+            y = y + dy * dt;
+            z = z + dz * dt;
+
+            // スケーリング
+            let scale = 3;
+            let x3d = x * scale;
+            let y3d = y * scale;
+            let z3d = (z - 25) * scale; // z軸をシフト
+
+            // 透視投影
+            let perspective = 350 / (350 + z3d);
+            let sx = centerX + x3d * perspective;
+            let sy = centerY + y3d * perspective * 0.6;
+
+            let speed = 2.5;
+            let angle = atan2(sy - centerY, sx - centerX);
+
+            // 軌道に沿って弾を配置
+            let shotType = 1 + floor(abs(z) / 10) % 5;
+            CreateShotA(sx, sy, speed, angle, shotType, 0);
+
+            // 軌跡効果
+            if(time % 6 == 0) {
+                let numTrails = 8;
+                loop(numTrails) {
+                    let trailAngle = (loop_index / numTrails) * 360;
+                    CreateShotA(sx, sy, speed * 0.8, trailAngle, shotType, 1);
+                }
+            }
+        }
+        yield;
+    }
+}

@@ -1,264 +1,108 @@
 #TouhouDanmakufu[Single]
-#Title["3D立体弾幕 - 螺旋球体"]
-#Text["美しい数学関数を使った立体的な弾幕パターン"]
+#Title["月符「月の波紋」"]
+#Text["月の引力に引き寄せられる弾幕\n自機狙い散弾と回転リングの組み合わせ"]
 
-// グローバル変数
-let time = 0;
-let centerX = 192;
-let centerY = 150;
+// ===== ZUN流スペルカード構成 =====
+// Phase 1 (HP 3000-2000): 自機狙い3-Way + 12-Way回転リング
+// Phase 2 (HP 2000-1000): 自機狙い5-Way + 二重リング
+// Phase 3 (HP 1000-0  ): 自機狙い7-Way + 三重高速リング
+
+let BOSS_START_X = 192;
+let BOSS_START_Y = 120;
 
 task main {
-    let enemy = ObjEnemy_Create();
-    ObjEnemy_SetPosition(enemy, centerX, centerY);
-    ObjEnemy_SetLife(enemy, 5000);
-    ObjEnemy_SetCollisionA(enemy, 32);
-    ObjEnemy_SetTimer(enemy, 0);
+    let boss = ObjEnemy_Create();
+    ObjEnemy_SetPosition(boss, BOSS_START_X, BOSS_START_Y);
+    ObjEnemy_SetLife(boss, 3000);
+    ObjEnemy_SetCollisionA(boss, 22);
+    ObjEnemy_SetTimer(boss, 45);
 
-    // 弾幕パターンを起動
-    SpiralSphere(enemy);
-    TorusPattern(enemy);
-    HelixWave(enemy);
-    PerspectiveCube(enemy);
+    BossFloat(boss);
+    MainSpellPattern(boss);
 
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        time++;
+    while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
         yield;
     }
 
-    Obj_Delete(enemy);
+    Obj_Delete(boss);
 }
 
-// 螺旋球体パターン - 球面上を回転する弾幕
-task SpiralSphere(enemy) {
-    let phase = 0;
-
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 8 == 0) {
-            let layers = 5; // 球の層の数
-
-            loop(layers) {
-                let layerIndex = loop_index;
-                let phi = (layerIndex / layers) * 180; // 緯度角
-
-                let numBullets = 12 + layerIndex * 4; // 層ごとに弾数を変える
-
-                loop(numBullets) {
-                    let theta = (loop_index / numBullets) * 360 + phase; // 経度角
-
-                    // 3D球面座標
-                    let radius = 80 + layerIndex * 15;
-                    let x3d = radius * sin(phi) * cos(theta);
-                    let y3d = radius * sin(phi) * sin(theta);
-                    let z3d = radius * cos(phi);
-
-                    // 擬似3D投影（透視投影）
-                    let perspective = 300 / (300 + z3d);
-                    let sx = centerX + x3d * perspective;
-                    let sy = centerY + y3d * perspective * 0.7;
-
-                    // Z値に応じてサイズと速度を変更（遠近感）
-                    let scale = perspective;
-                    let speed = 1.5 + scale * 2;
-
-                    let angle = atan2(sy - centerY, sx - centerX);
-
-                    // Z値に応じて弾の種類を変更
-                    let shotType = 1 + min(floor(scale * 4), 3);
-                    CreateShotA(sx, sy, speed, angle, shotType, 0);
-                }
-            }
-
-            phase += 15;
-        }
-        yield;
-    }
-}
-
-// トーラス（ドーナツ型）パターン
-task TorusPattern(enemy) {
-    let phase = 0;
-
-    wait(60);
-
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 12 == 0) {
-            let majorRadius = 100; // 大円の半径
-            let minorRadius = 40;  // 小円の半径
-
-            let uSteps = 12; // 大円の分割数
-            let vSteps = 8;  // 小円の分割数
-
-            loop(uSteps) {
-                let u = (loop_index / uSteps) * 360 + phase;
-
-                loop(vSteps) {
-                    let v = (loop_index / vSteps) * 360 + phase * 2;
-
-                    // トーラスのパラメトリック方程式
-                    let x3d = (majorRadius + minorRadius * cos(v)) * cos(u);
-                    let y3d = (majorRadius + minorRadius * cos(v)) * sin(u);
-                    let z3d = minorRadius * sin(v);
-
-                    // 透視投影
-                    let perspective = 250 / (250 + z3d);
-                    let sx = centerX + x3d * perspective;
-                    let sy = centerY + y3d * perspective * 0.6;
-
-                    let speed = 2.0 * perspective;
-                    let angle = atan2(sy - centerY, sx - centerX);
-
-                    CreateShotA(sx, sy, speed, angle, 2, 1);
-                }
-            }
-
-            phase += 10;
-        }
-        yield;
-    }
-}
-
-// 螺旋波動パターン
-task HelixWave(enemy) {
+// ボスが正弦波を描きながらゆっくり移動
+task BossFloat(boss) {
     let t = 0;
-
-    wait(90);
-
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 4 == 0) {
-            let helixNum = 3; // 螺旋の本数
-
-            loop(helixNum) {
-                let helixPhase = (loop_index / helixNum) * 360;
-
-                // 螺旋のパラメトリック方程式
-                let radius = 60 + 30 * sin(t * 3);
-                let height = 80 * sin(t * 2 + helixPhase);
-
-                let x3d = radius * cos(t * 10 + helixPhase);
-                let y3d = radius * sin(t * 10 + helixPhase);
-                let z3d = height;
-
-                // 透視投影
-                let perspective = 280 / (280 + z3d);
-                let sx = centerX + x3d * perspective;
-                let sy = centerY + y3d * perspective * 0.65;
-
-                let speed = 2.5;
-                let angle = atan2(sy - centerY, sx - centerX);
-
-                CreateShotA(sx, sy, speed, angle, 3, 2);
-
-                // 軌跡効果のための追加弾
-                let trailOffset = 10;
-                let tx = centerX + (x3d - trailOffset * cos(t * 10 + helixPhase)) * perspective;
-                let ty = centerY + (y3d - trailOffset * sin(t * 10 + helixPhase)) * perspective * 0.65;
-                CreateShotA(tx, ty, speed * 0.8, angle, 4, 2);
-            }
-
-            t += 0.15;
-        }
+    while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
+        let x = BOSS_START_X + 70 * sin(t * 1.2);
+        let y = BOSS_START_Y + 20 * sin(t * 2.5 + 90);
+        ObjEnemy_SetPosition(boss, x, y);
+        t++;
         yield;
     }
 }
 
-// 透視立方体パターン
-task PerspectiveCube(enemy) {
-    let rotation = 0;
+// ライフ3段階でパターンが変化するメイン弾幕
+task MainSpellPattern(boss) {
+    let timer = 0;
+    let ringAngle = 0;
 
-    wait(120);
+    while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
+        let bx = ObjEnemy_GetX(boss);
+        let by = ObjEnemy_GetY(boss);
+        let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 15 == 0) {
-            let cubeSize = 70;
-
-            // 立方体の8頂点
-            let vertices = [
-                [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
-                [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
-            ];
-
-            // 各頂点から弾を発射
-            loop(length(vertices)) {
-                let vertex = vertices[loop_index];
-
-                // 3D回転（Y軸とX軸）
-                let x = vertex[0];
-                let y = vertex[1];
-                let z = vertex[2];
-
-                // Y軸回転
-                let xr = x * cos(rotation) - z * sin(rotation);
-                let zr = x * sin(rotation) + z * cos(rotation);
-
-                // X軸回転
-                let yr = y * cos(rotation * 0.7) - zr * sin(rotation * 0.7);
-                let zr2 = y * sin(rotation * 0.7) + zr * cos(rotation * 0.7);
-
-                // スケーリング
-                let x3d = xr * cubeSize;
-                let y3d = yr * cubeSize;
-                let z3d = zr2 * cubeSize;
-
-                // 透視投影
-                let perspective = 300 / (300 + z3d);
-                let sx = centerX + x3d * perspective;
-                let sy = centerY + y3d * perspective * 0.7;
-
-                // 頂点から放射状に弾を発射
-                let numShots = 8;
-                loop(numShots) {
-                    let shotAngle = (loop_index / numShots) * 360 + rotation * 2;
-                    let speed = 1.8 + perspective;
-
-                    CreateShotA(sx, sy, speed, shotAngle, 1, 3);
-                }
+        if(life > 2000) {
+            // Phase 1: ゆっくりした3-Way + 12発リング
+            if(timer % 90 == 0) {
+                AimedNWay(bx, by, 3, 20, 2.5, 1);
             }
-
-            // 立方体の辺に沿って弾を配置
-            let edgeSteps = 5;
-            loop(edgeSteps) {
-                let t = loop_index / edgeSteps;
-
-                // 底面の4辺
-                CreateEdgeShot([-1, -1, -1], [1, -1, -1], t, rotation, cubeSize);
-                CreateEdgeShot([1, -1, -1], [1, 1, -1], t, rotation, cubeSize);
-                CreateEdgeShot([1, 1, -1], [-1, 1, -1], t, rotation, cubeSize);
-                CreateEdgeShot([-1, 1, -1], [-1, -1, -1], t, rotation, cubeSize);
+            if(timer % 48 == 0) {
+                Ring(bx, by, 12, ringAngle, 2.0, 3);
+                ringAngle += 15;
             }
-
-            rotation += 8;
         }
+        else if(life > 1000) {
+            // Phase 2: 5-Way + 二重リング（少し速くなる）
+            if(timer % 70 == 0) {
+                AimedNWay(bx, by, 5, 18, 3.0, 1);
+            }
+            if(timer % 36 == 0) {
+                Ring(bx, by, 16, ringAngle, 2.0, 2);
+                Ring(bx, by, 16, ringAngle + 11.25, 2.8, 3);
+                ringAngle += 11.25;
+            }
+        }
+        else {
+            // Phase 3: 7-Way + 三重高速リング（最終形態）
+            if(timer % 50 == 0) {
+                AimedNWay(bx, by, 7, 15, 3.5, 1);
+            }
+            if(timer % 24 == 0) {
+                Ring(bx, by, 20, ringAngle,       2.0, 2);
+                Ring(bx, by, 20, ringAngle + 9,   3.0, 3);
+                Ring(bx, by, 20, ringAngle + 18,  3.8, 4);
+                ringAngle += 9;
+            }
+        }
+
+        timer++;
         yield;
     }
 }
 
-// 立方体の辺に弾を配置する補助関数
-function CreateEdgeShot(v1, v2, t, rotation, cubeSize) {
-    // 線形補間
-    let x = v1[0] + (v2[0] - v1[0]) * t;
-    let y = v1[1] + (v2[1] - v1[1]) * t;
-    let z = v1[2] + (v2[2] - v1[2]) * t;
+// 自機狙いN-Way散弾（東方原作で最も多用される弾幕）
+// spread = 弾同士の角度間隔(度), graphic = 弾の種類
+function AimedNWay(x, y, n, spread, speed, graphic) {
+    let baseAngle = atan2(GetPlayerY() - y, GetPlayerX() - x);
+    loop(n) {
+        let offset = (loop_index - (n - 1) / 2.0) * spread;
+        // delay=4で弾が少し遅れて出現する原作らしい演出
+        CreateShotA(x, y, speed, baseAngle + offset, graphic, 4);
+    }
+}
 
-    // Y軸回転
-    let xr = x * cos(rotation) - z * sin(rotation);
-    let zr = x * sin(rotation) + z * cos(rotation);
-
-    // X軸回転
-    let yr = y * cos(rotation * 0.7) - zr * sin(rotation * 0.7);
-    let zr2 = y * sin(rotation * 0.7) + zr * cos(rotation * 0.7);
-
-    // スケーリング
-    let x3d = xr * cubeSize;
-    let y3d = yr * cubeSize;
-    let z3d = zr2 * cubeSize;
-
-    // 透視投影
-    let perspective = 300 / (300 + z3d);
-    let sx = centerX + x3d * perspective;
-    let sy = centerY + y3d * perspective * 0.7;
-
-    let angle = atan2(sy - centerY, sx - centerX);
-    let speed = 1.5;
-
-    CreateShotA(sx, sy, speed, angle, 2, 4);
+// 全方位N発リング（offset引数で回転を表現）
+function Ring(x, y, n, offset, speed, graphic) {
+    loop(n) {
+        let angle = (loop_index / n) * 360 + offset;
+        CreateShotA(x, y, speed, angle, graphic, 0);
+    }
 }

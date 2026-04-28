@@ -1,287 +1,128 @@
 #TouhouDanmakufu[Single]
-#Title["数学的弾幕 - ローズ曲線と黄金螺旋"]
-#Text["数学の美しさを表現した立体弾幕"]
+#Title["桜符「散る花びら」"]
+#Text["幽々子風の花びら弾幕\n大型弾の合間を縫う散弾と自機狙い"]
 
-let time = 0;
-let centerX = 192;
-let centerY = 150;
+// ===== スペルカード構成 =====
+// Phase 1 (HP 3000-2000): ゆっくりした大型弾（花びら）+ ランダム散弾
+// Phase 2 (HP 2000-1000): 大型弾 + 中型自機狙い散弾
+// Phase 3 (HP 1000-0  ): 全パターン高速化 + 自機狙い追加
+
+let BOSS_START_X = 192;
+let BOSS_START_Y = 110;
 
 task main {
-    let enemy = ObjEnemy_Create();
-    ObjEnemy_SetPosition(enemy, centerX, centerY);
-    ObjEnemy_SetLife(enemy, 6000);
-    ObjEnemy_SetCollisionA(enemy, 32);
-    ObjEnemy_SetTimer(enemy, 0);
+    let boss = ObjEnemy_Create();
+    ObjEnemy_SetPosition(boss, BOSS_START_X, BOSS_START_Y);
+    ObjEnemy_SetLife(boss, 3000);
+    ObjEnemy_SetCollisionA(boss, 22);
+    ObjEnemy_SetTimer(boss, 50);
 
-    // 様々な数学的パターンを起動
-    RoseCurve3D(enemy);
-    DNAHelix(enemy);
-    FibonacciSphere(enemy);
-    LissajousCurve3D(enemy);
-    GoldenSpiral(enemy);
+    BossGlide(boss);
+    PetalPattern(boss);
+    ScatterPattern(boss);
+    AimedPattern(boss);
 
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        time++;
+    while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
         yield;
     }
 
-    Obj_Delete(enemy);
+    Obj_Delete(boss);
 }
 
-// 3Dローズ曲線 (r = a * cos(k*θ))
-task RoseCurve3D(enemy) {
-    let phase = 0;
-
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 6 == 0) {
-            let k = 5; // 花びらの数に関係
-            let numPoints = 60;
-            let layers = 4;
-
-            loop(layers) {
-                let layerZ = (loop_index - layers/2) * 30; // Z軸の層
-
-                loop(numPoints) {
-                    let theta = (loop_index / numPoints) * 360 * k + phase;
-                    let r = 80 * cos(k * theta);
-
-                    // ローズ曲線の座標
-                    let x3d = r * cos(theta);
-                    let y3d = r * sin(theta);
-                    let z3d = layerZ + 20 * sin(theta * 3);
-
-                    // 透視投影
-                    let perspective = 300 / (300 + z3d);
-                    let sx = centerX + x3d * perspective;
-                    let sy = centerY + y3d * perspective * 0.7;
-
-                    let speed = 2.0 + perspective * 0.5;
-                    let angle = atan2(sy - centerY, sx - centerX);
-
-                    // 層によって弾の色を変える
-                    let shotType = 1 + (loop_index % 4);
-                    CreateShotA(sx, sy, speed, angle, shotType, 0);
-                }
-            }
-
-            phase += 3;
-        }
-        yield;
-    }
-}
-
-// DNA二重螺旋構造
-task DNAHelix(enemy) {
+// ゆっくりした横移動（幽々子らしい優雅な動き）
+task BossGlide(boss) {
     let t = 0;
-
-    wait(45);
-
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 3 == 0) {
-            let radius = 60;
-            let helixHeight = 150;
-            let numPairs = 8; // 塩基対の数
-
-            loop(numPairs) {
-                let height = (loop_index / numPairs) * helixHeight - helixHeight/2;
-                let angle1 = t + (loop_index / numPairs) * 360;
-                let angle2 = angle1 + 180; // 反対側の螺旋
-
-                // 第一の螺旋
-                let x1 = radius * cos(angle1);
-                let y1 = radius * sin(angle1);
-                let z1 = height;
-
-                // 第二の螺旋
-                let x2 = radius * cos(angle2);
-                let y2 = radius * sin(angle2);
-                let z2 = height;
-
-                // 透視投影 - 第一螺旋
-                let persp1 = 280 / (280 + z1);
-                let sx1 = centerX + x1 * persp1;
-                let sy1 = centerY + y1 * persp1 * 0.65 + z1 * 0.3;
-
-                // 透視投影 - 第二螺旋
-                let persp2 = 280 / (280 + z2);
-                let sx2 = centerX + x2 * persp2;
-                let sy2 = centerY + y2 * persp2 * 0.65 + z2 * 0.3;
-
-                let speed = 1.5;
-                let shotAngle1 = atan2(sy1 - centerY, sx1 - centerX);
-                let shotAngle2 = atan2(sy2 - centerY, sx2 - centerX);
-
-                // 二本の螺旋
-                CreateShotA(sx1, sy1, speed, shotAngle1, 1, 1);
-                CreateShotA(sx2, sy2, speed, shotAngle2, 3, 1);
-
-                // 塩基対の結合を表現（二つの螺旋を結ぶ弾）
-                let bondSteps = 4;
-                loop(bondSteps) {
-                    let bt = loop_index / bondSteps;
-                    let bx = x1 + (x2 - x1) * bt;
-                    let by = y1 + (y2 - y1) * bt;
-                    let bz = height;
-
-                    let bpersp = 280 / (280 + bz);
-                    let bsx = centerX + bx * bpersp;
-                    let bsy = centerY + by * bpersp * 0.65 + bz * 0.3;
-
-                    let bangle = atan2(bsy - centerY, bsx - centerX);
-                    CreateShotA(bsx, bsy, speed * 0.8, bangle, 2, 2);
-                }
-            }
-
-            t += 12;
-        }
+    while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
+        let x = BOSS_START_X + 90 * sin(t * 0.8);
+        let y = BOSS_START_Y + 15 * sin(t * 1.5);
+        ObjEnemy_SetPosition(boss, x, y);
+        t++;
         yield;
     }
 }
 
-// フィボナッチ球面配置
-task FibonacciSphere(enemy) {
-    let rotation = 0;
+// 大型弾「花びら」パターン - 全方向にゆっくり大型弾を発射
+task PetalPattern(boss) {
+    let timer = 0;
+    let angle = 0;
 
-    wait(90);
+    while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
+        let bx = ObjEnemy_GetX(boss);
+        let by = ObjEnemy_GetY(boss);
+        let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 10 == 0) {
-            let numPoints = 100;
-            let goldenAngle = 137.508; // 黄金角
+        let interval = life > 1000 ? 20 : 14; // Phase 3で速くなる
+        let speed    = life > 1000 ? 1.2 : 1.8;
 
-            loop(numPoints) {
-                let i = loop_index;
-
-                // フィボナッチ球面配置
-                let y = 1 - (i / (numPoints - 1)) * 2;
-                let radiusAtY = sqrt(1 - y * y);
-                let theta = i * goldenAngle + rotation;
-
-                let x = radiusAtY * cos(theta);
-                let z = radiusAtY * sin(theta);
-
-                // スケーリング
-                let scale = 90;
-                let x3d = x * scale;
-                let y3d = y * scale;
-                let z3d = z * scale;
-
-                // 透視投影
-                let perspective = 300 / (300 + z3d);
-                let sx = centerX + x3d * perspective;
-                let sy = centerY + y3d * perspective * 0.7;
-
-                let speed = 1.0 + perspective * 1.5;
-                let angle = atan2(sy - centerY, sx - centerX);
-
-                // 距離に応じて弾のタイプを変える
-                let dist = sqrt(x*x + y*y + z*z);
-                let shotType = 1 + floor(dist * 3);
-                CreateShotA(sx, sy, speed, angle, shotType, 3);
+        if(timer % interval == 0) {
+            // 8方向に大型弾 + 45度オフセットで8方向 = 16方向の花びら
+            loop(8) {
+                CreateShotA(bx, by, speed, angle + loop_index * 45,     5, 6);
+                CreateShotA(bx, by, speed, angle + loop_index * 45 + 22.5, 5, 6);
             }
-
-            rotation += 5;
+            angle += 5; // ゆっくり回転させる
         }
+
+        timer++;
         yield;
     }
 }
 
-// 3Dリサージュ曲線
-task LissajousCurve3D(enemy) {
-    let t = 0;
+// ランダム散弾 - 自機周囲に"降り注ぐ"ような弾幕
+task ScatterPattern(boss) {
+    let timer = 0;
 
-    wait(135);
+    while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
+        let bx = ObjEnemy_GetX(boss);
+        let by = ObjEnemy_GetY(boss);
+        let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 4 == 0) {
-            let A = 80;
-            let B = 80;
-            let C = 80;
-            let a = 3;
-            let b = 4;
-            let c = 5;
-            let delta1 = 90;
-            let delta2 = 0;
-            let numPoints = 30;
-
-            loop(numPoints) {
-                let phase = (loop_index / numPoints) * 360;
-                let theta = t + phase;
-
-                // 3Dリサージュ曲線
-                let x3d = A * sin(a * theta + delta1);
-                let y3d = B * sin(b * theta);
-                let z3d = C * sin(c * theta + delta2);
-
-                // 透視投影
-                let perspective = 350 / (350 + z3d);
-                let sx = centerX + x3d * perspective;
-                let sy = centerY + y3d * perspective * 0.6;
-
-                let speed = 2.5;
-                let angle = atan2(sy - centerY, sx - centerX);
-
-                let shotType = 1 + (loop_index % 5);
-                CreateShotA(sx, sy, speed, angle, shotType, 4);
-
-                // 軌跡を作るための補助弾
-                if(loop_index % 3 == 0) {
-                    CreateShotA(sx, sy, speed * 0.7, angle, shotType, 4);
-                }
+        // Phase 1のみランダム散弾
+        if(life > 2000 && timer % 8 == 0) {
+            // 真下向き ± ランダム で"花びらが降る"演出
+            let numShots = 5;
+            loop(numShots) {
+                let angle = 90 + rand(-35, 35);
+                let speed = rand(1.5, 2.5);
+                CreateShotA(bx, by, speed, angle, 4, 0);
             }
-
-            t += 5;
         }
+
+        timer++;
         yield;
     }
 }
 
-// 黄金螺旋（対数螺旋）
-task GoldenSpiral(enemy) {
-    let rotation = 0;
+// 自機狙い弾 - Phase 2/3で登場
+task AimedPattern(boss) {
+    let timer = 0;
 
-    wait(180);
+    while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
+        let bx = ObjEnemy_GetX(boss);
+        let by = ObjEnemy_GetY(boss);
+        let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
-    while(ObjEnemy_GetInfo(enemy, INFO_LIFE) > 0) {
-        if(time % 5 == 0) {
-            let phi = 1.618033988749; // 黄金比
-            let numSpirals = 5;
-            let pointsPerSpiral = 40;
+        if(life <= 2000) {
+            let n        = life > 1000 ? 3 : 5;
+            let spread   = life > 1000 ? 22 : 18;
+            let speed    = life > 1000 ? 2.8 : 3.5;
+            let interval = life > 1000 ? 70 : 50;
 
-            loop(numSpirals) {
-                let spiralPhase = (loop_index / numSpirals) * 360;
-
-                loop(pointsPerSpiral) {
-                    let i = loop_index;
-                    let theta = i * 15 + rotation + spiralPhase;
-
-                    // 対数螺旋 r = a * e^(b*θ)
-                    let a = 5;
-                    let b = 0.15;
-                    let r = a * (phi ^ (b * theta / 50));
-
-                    // 螺旋の高さ
-                    let height = i * 3 - 60;
-
-                    let x3d = r * cos(theta);
-                    let y3d = r * sin(theta);
-                    let z3d = height;
-
-                    // 透視投影
-                    let perspective = 300 / (300 + z3d);
-                    let sx = centerX + x3d * perspective;
-                    let sy = centerY + y3d * perspective * 0.7;
-
-                    let speed = 1.8;
-                    let angle = theta;
-
-                    let shotType = 1 + (loop_index % 4);
-                    CreateShotA(sx, sy, speed, angle, shotType, 0);
-                }
+            if(timer % interval == 0) {
+                AimedNWay(bx, by, n, spread, speed, 1);
             }
-
-            rotation += 8;
         }
+
+        timer++;
         yield;
+    }
+}
+
+// 自機狙いN-Way散弾
+function AimedNWay(x, y, n, spread, speed, graphic) {
+    let baseAngle = atan2(GetPlayerY() - y, GetPlayerX() - x);
+    loop(n) {
+        let offset = (loop_index - (n - 1) / 2.0) * spread;
+        CreateShotA(x, y, speed, baseAngle + offset, graphic, 4);
     }
 }

@@ -1,18 +1,14 @@
 #TouhouDanmakufu[Single]
 #Title["桜符「散る花びら」"]
-#Text["幽々子風の花びら弾幕\n大型弾の合間を縫う散弾と自機狙い"]
+#Text["大型弾の花びらと降り注ぐ散弾の複合"]
 
-// ===== スペルカード構成 =====
-// Phase 1 (HP 3000-2000): ゆっくりした大型弾（花びら）+ ランダム散弾
-// Phase 2 (HP 2000-1000): 大型弾 + 中型自機狙い散弾
-// Phase 3 (HP 1000-0  ): 全パターン高速化 + 自機狙い追加
-
-let BOSS_START_X = 192;
-let BOSS_START_Y = 110;
+// Phase 1 (HP 3000-2000): 16方向ゆっくり花びら弾 + 下方向散弾
+// Phase 2 (HP 2000-1000): 花びら弾(高速) + 自機狙い3-Way
+// Phase 3 (HP 1000-  0 ): 花びら弾(最速) + 自機狙い5-Way
 
 task main {
     let boss = ObjEnemy_Create();
-    ObjEnemy_SetPosition(boss, BOSS_START_X, BOSS_START_Y);
+    ObjEnemy_SetPosition(boss, 192, 110);
     ObjEnemy_SetLife(boss, 3000);
     ObjEnemy_SetCollisionA(boss, 22);
     ObjEnemy_SetTimer(boss, 50);
@@ -25,42 +21,41 @@ task main {
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
         yield;
     }
-
     Obj_Delete(boss);
 }
 
-// ゆっくりした横移動（幽々子らしい優雅な動き）
 task BossGlide(boss) {
     let t = 0;
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
-        let x = BOSS_START_X + 90 * sin(t * 0.8);
-        let y = BOSS_START_Y + 15 * sin(t * 1.5);
-        ObjEnemy_SetPosition(boss, x, y);
+        ObjEnemy_SetPosition(boss,
+            192 + 90 * sin(t * 0.8),
+            110 + 15 * sin(t * 1.5));
         t++;
         yield;
     }
 }
 
-// 大型弾「花びら」パターン - 全方向にゆっくり大型弾を発射
 task PetalPattern(boss) {
-    let timer = 0;
-    let angle = 0;
+    let timer    = 0;
+    let petalAngle = 0;
 
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
-        let bx = ObjEnemy_GetX(boss);
-        let by = ObjEnemy_GetY(boss);
+        let bx   = ObjEnemy_GetX(boss);
+        let by   = ObjEnemy_GetY(boss);
         let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
-        let interval = life > 1000 ? 20 : 14; // Phase 3で速くなる
-        let speed    = life > 1000 ? 1.2 : 1.8;
+        let interval = 20;
+        let speed    = 1.2;
+        if(life <= 2000) { interval = 16; speed = 1.6; }
+        if(life <= 1000) { interval = 12; speed = 2.0; }
 
         if(timer % interval == 0) {
-            // 8方向に大型弾 + 45度オフセットで8方向 = 16方向の花びら
             loop(8) {
-                CreateShotA(bx, by, speed, angle + loop_index * 45,     5, 6);
-                CreateShotA(bx, by, speed, angle + loop_index * 45 + 22.5, 5, 6);
+                let a = petalAngle + loop_index * 45;
+                CreateShotA(bx, by, speed, a,        2, 6);
+                CreateShotA(bx, by, speed, a + 22.5, 2, 6);
             }
-            angle += 5; // ゆっくり回転させる
+            petalAngle += 5;
         }
 
         timer++;
@@ -68,23 +63,17 @@ task PetalPattern(boss) {
     }
 }
 
-// ランダム散弾 - 自機周囲に"降り注ぐ"ような弾幕
 task ScatterPattern(boss) {
     let timer = 0;
 
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
-        let bx = ObjEnemy_GetX(boss);
-        let by = ObjEnemy_GetY(boss);
+        let bx   = ObjEnemy_GetX(boss);
+        let by   = ObjEnemy_GetY(boss);
         let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
-        // Phase 1のみランダム散弾
         if(life > 2000 && timer % 8 == 0) {
-            // 真下向き ± ランダム で"花びらが降る"演出
-            let numShots = 5;
-            loop(numShots) {
-                let angle = 90 + rand(-35, 35);
-                let speed = rand(1.5, 2.5);
-                CreateShotA(bx, by, speed, angle, 4, 0);
+            loop(5) {
+                CreateShotA(bx, by, rand(1.5, 2.5), 90 + rand(-35, 35), 4, 0);
             }
         }
 
@@ -93,20 +82,20 @@ task ScatterPattern(boss) {
     }
 }
 
-// 自機狙い弾 - Phase 2/3で登場
 task AimedPattern(boss) {
     let timer = 0;
 
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
-        let bx = ObjEnemy_GetX(boss);
-        let by = ObjEnemy_GetY(boss);
+        let bx   = ObjEnemy_GetX(boss);
+        let by   = ObjEnemy_GetY(boss);
         let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
         if(life <= 2000) {
-            let n        = life > 1000 ? 3 : 5;
-            let spread   = life > 1000 ? 22 : 18;
-            let speed    = life > 1000 ? 2.8 : 3.5;
-            let interval = life > 1000 ? 70 : 50;
+            let n        = 3;
+            let spread   = 22;
+            let speed    = 2.8;
+            let interval = 70;
+            if(life <= 1000) { n = 5; spread = 18; speed = 3.5; interval = 50; }
 
             if(timer % interval == 0) {
                 AimedNWay(bx, by, n, spread, speed, 1);
@@ -118,11 +107,10 @@ task AimedPattern(boss) {
     }
 }
 
-// 自機狙いN-Way散弾
 function AimedNWay(x, y, n, spread, speed, graphic) {
-    let baseAngle = atan2(GetPlayerY() - y, GetPlayerX() - x);
+    let base = atan2(GetPlayerY() - y, GetPlayerX() - x);
     loop(n) {
         let offset = (loop_index - (n - 1) / 2.0) * spread;
-        CreateShotA(x, y, speed, baseAngle + offset, graphic, 4);
+        CreateShotA(x, y, speed, base + offset, graphic, 4);
     }
 }

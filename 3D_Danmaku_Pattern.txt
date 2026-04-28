@@ -1,56 +1,48 @@
 #TouhouDanmakufu[Single]
 #Title["月符「月の波紋」"]
-#Text["月の引力に引き寄せられる弾幕\n自機狙い散弾と回転リングの組み合わせ"]
+#Text["自機狙い散弾と全方位回転リングの複合"]
 
-// ===== ZUN流スペルカード構成 =====
 // Phase 1 (HP 3000-2000): 自機狙い3-Way + 12-Way回転リング
 // Phase 2 (HP 2000-1000): 自機狙い5-Way + 二重リング
-// Phase 3 (HP 1000-0  ): 自機狙い7-Way + 三重高速リング
-
-let BOSS_START_X = 192;
-let BOSS_START_Y = 120;
+// Phase 3 (HP 1000-  0 ): 自機狙い7-Way + 三重高速リング
 
 task main {
     let boss = ObjEnemy_Create();
-    ObjEnemy_SetPosition(boss, BOSS_START_X, BOSS_START_Y);
+    ObjEnemy_SetPosition(boss, 192, 120);
     ObjEnemy_SetLife(boss, 3000);
     ObjEnemy_SetCollisionA(boss, 22);
     ObjEnemy_SetTimer(boss, 45);
 
     BossFloat(boss);
-    MainSpellPattern(boss);
+    MainPattern(boss);
 
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
         yield;
     }
-
     Obj_Delete(boss);
 }
 
-// ボスが正弦波を描きながらゆっくり移動
 task BossFloat(boss) {
     let t = 0;
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
-        let x = BOSS_START_X + 70 * sin(t * 1.2);
-        let y = BOSS_START_Y + 20 * sin(t * 2.5 + 90);
-        ObjEnemy_SetPosition(boss, x, y);
+        ObjEnemy_SetPosition(boss,
+            192 + 70 * sin(t * 1.2),
+            120 + 20 * sin(t * 2.5 + 90));
         t++;
         yield;
     }
 }
 
-// ライフ3段階でパターンが変化するメイン弾幕
-task MainSpellPattern(boss) {
-    let timer = 0;
+task MainPattern(boss) {
+    let timer    = 0;
     let ringAngle = 0;
 
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
-        let bx = ObjEnemy_GetX(boss);
-        let by = ObjEnemy_GetY(boss);
+        let bx   = ObjEnemy_GetX(boss);
+        let by   = ObjEnemy_GetY(boss);
         let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
         if(life > 2000) {
-            // Phase 1: ゆっくりした3-Way + 12発リング
             if(timer % 90 == 0) {
                 AimedNWay(bx, by, 3, 20, 2.5, 1);
             }
@@ -60,25 +52,23 @@ task MainSpellPattern(boss) {
             }
         }
         else if(life > 1000) {
-            // Phase 2: 5-Way + 二重リング（少し速くなる）
             if(timer % 70 == 0) {
                 AimedNWay(bx, by, 5, 18, 3.0, 1);
             }
             if(timer % 36 == 0) {
-                Ring(bx, by, 16, ringAngle, 2.0, 2);
+                Ring(bx, by, 16, ringAngle,         2.0, 2);
                 Ring(bx, by, 16, ringAngle + 11.25, 2.8, 3);
                 ringAngle += 11.25;
             }
         }
         else {
-            // Phase 3: 7-Way + 三重高速リング（最終形態）
             if(timer % 50 == 0) {
                 AimedNWay(bx, by, 7, 15, 3.5, 1);
             }
             if(timer % 24 == 0) {
-                Ring(bx, by, 20, ringAngle,       2.0, 2);
-                Ring(bx, by, 20, ringAngle + 9,   3.0, 3);
-                Ring(bx, by, 20, ringAngle + 18,  3.8, 4);
+                Ring(bx, by, 20, ringAngle,      2.0, 2);
+                Ring(bx, by, 20, ringAngle + 9,  3.0, 3);
+                Ring(bx, by, 20, ringAngle + 18, 3.8, 4);
                 ringAngle += 9;
             }
         }
@@ -88,21 +78,16 @@ task MainSpellPattern(boss) {
     }
 }
 
-// 自機狙いN-Way散弾（東方原作で最も多用される弾幕）
-// spread = 弾同士の角度間隔(度), graphic = 弾の種類
 function AimedNWay(x, y, n, spread, speed, graphic) {
-    let baseAngle = atan2(GetPlayerY() - y, GetPlayerX() - x);
+    let base = atan2(GetPlayerY() - y, GetPlayerX() - x);
     loop(n) {
         let offset = (loop_index - (n - 1) / 2.0) * spread;
-        // delay=4で弾が少し遅れて出現する原作らしい演出
-        CreateShotA(x, y, speed, baseAngle + offset, graphic, 4);
+        CreateShotA(x, y, speed, base + offset, graphic, 4);
     }
 }
 
-// 全方位N発リング（offset引数で回転を表現）
 function Ring(x, y, n, offset, speed, graphic) {
     loop(n) {
-        let angle = (loop_index / n) * 360 + offset;
-        CreateShotA(x, y, speed, angle, graphic, 0);
+        CreateShotA(x, y, speed, (loop_index / n) * 360 + offset, graphic, 0);
     }
 }

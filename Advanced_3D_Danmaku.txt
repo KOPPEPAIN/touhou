@@ -1,24 +1,18 @@
 #TouhouDanmakufu[Single]
 #Title["境符「波と粒子の境界」"]
-#Text["幻想と現実の境界から降り注ぐ弾幕\n画面を横断する波状弾幕と自機狙いの複合"]
+#Text["画面を横断するsin波ストリームと自機狙いの複合"]
 
-// ===== ZUN流「波状弾幕」の実装 =====
-// 東方永夜抄・紫の「波と粒子の境界」を参考にした波状弾幕パターン
+// Phase 1 (HP 3500-2300): 左右2ストリーム波状弾 + 自機狙い3-Way
+// Phase 2 (HP 2300-1200): 左右4ストリーム波状弾 + 自機狙い5-Way
+// Phase 3 (HP 1200-  0 ): 左右6ストリーム高速波 + 自機狙い7-Way + 追加リング
 //
-// 構成:
-// Phase 1 (HP 3500-2300): 2ストリーム波状弾 + 自機狙い3-Way
-// Phase 2 (HP 2300-1200): 4ストリーム波状弾 + 自機狙い5-Way
-// Phase 3 (HP 1200-0   ): 6ストリーム高速波 + 自機狙い7-Way + 追加リング
-
-let BOSS_START_X = 192;
-let BOSS_START_Y = 100;
-let SCREEN_W = 384;
-let SCREEN_H = 448;
-let SCREEN_CY = 224; // 画面縦中央
+// 波状弾の仕組み:
+//   毎フレーム画面端から1発ずつ発射し、発射Y座標をsin波で上下させる。
+//   複数ストリームの位相をずらすことで美しい干渉縞が生まれる。
 
 task main {
     let boss = ObjEnemy_Create();
-    ObjEnemy_SetPosition(boss, BOSS_START_X, BOSS_START_Y);
+    ObjEnemy_SetPosition(boss, 192, 100);
     ObjEnemy_SetLife(boss, 3500);
     ObjEnemy_SetCollisionA(boss, 22);
     ObjEnemy_SetTimer(boss, 60);
@@ -30,57 +24,44 @@ task main {
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
         yield;
     }
-
     Obj_Delete(boss);
 }
 
-// ボスがゆっくり横揺れ（画面上部に留まる）
 task BossSway(boss) {
     let t = 0;
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
-        let x = BOSS_START_X + 100 * sin(t * 0.6);
-        let y = BOSS_START_Y + 10 * sin(t * 1.0);
-        ObjEnemy_SetPosition(boss, x, y);
+        ObjEnemy_SetPosition(boss,
+            192 + 100 * sin(t * 0.6),
+            100 +  10 * sin(t * 1.0));
         t++;
         yield;
     }
 }
 
-// ===== 核心：波状弾ストリーム =====
-// 左右の画面端からsin波に沿って弾を連続発射
-// 複数のストリームが異なる位相を持つことで美しい干渉縞が生まれる
 task WaveStream(boss) {
     let timer = 0;
 
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
         let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
-        // ライフに応じてストリーム数と速度を変化させる
-        let numStreams  = life > 2300 ? 2 : (life > 1200 ? 4 : 6);
-        let bulletSpeed = life > 2300 ? 3.0 : (life > 1200 ? 3.5 : 4.2);
-        let amplitude   = 130; // 波の振幅（画面高さの約30%）
-        let frequency   = life > 1200 ? 2.5 : 3.0; // 波の振動速度
+        let numStreams = 2;
+        let spd       = 3.0;
+        let freq      = 2.5;
+        if(life <= 2300) { numStreams = 4; spd = 3.5; }
+        if(life <= 1200) { numStreams = 6; spd = 4.2; freq = 3.0; }
 
-        // 毎フレーム全ストリームから弾を発射（これが"連続ストリーム"の正体）
         loop(numStreams) {
-            // 各ストリームは360/numStreams度ずつ位相がずれる
             let phase = (loop_index / numStreams) * 360;
+            let y     = 224 + 130 * sin(timer * freq + phase);
 
-            // 左→右ストリーム（奇数番）
             if(loop_index % 2 == 0) {
-                let y = SCREEN_CY + amplitude * sin(timer * frequency + phase);
-                // 画面左端から右へ
-                CreateShotA(0, y, bulletSpeed, 0, 2, 0);
+                CreateShotA(  0, y, spd,   0, 2, 0);
             }
-            // 右→左ストリーム（偶数番）
             else {
-                let y = SCREEN_CY + amplitude * sin(timer * frequency + phase + 180);
-                // 画面右端から左へ
-                CreateShotA(SCREEN_W, y, bulletSpeed, 180, 3, 0);
+                CreateShotA(384, y, spd, 180, 3, 0);
             }
         }
 
-        // Phase 3: ボス自身からもリング弾を追加
         if(life <= 1200 && timer % 30 == 0) {
             let bx = ObjEnemy_GetX(boss);
             let by = ObjEnemy_GetY(boss);
@@ -92,23 +73,23 @@ task WaveStream(boss) {
     }
 }
 
-// 自機狙いによる「割り込み」弾 - プレイヤーへの圧力
-// 波をかいくぐるだけでは避けられない緊張感を演出
 task AimedBreak(boss) {
     let timer = 0;
 
     while(ObjEnemy_GetInfo(boss, INFO_LIFE) > 0) {
-        let bx = ObjEnemy_GetX(boss);
-        let by = ObjEnemy_GetY(boss);
+        let bx   = ObjEnemy_GetX(boss);
+        let by   = ObjEnemy_GetY(boss);
         let life = ObjEnemy_GetInfo(boss, INFO_LIFE);
 
-        let n        = life > 2300 ? 3 : (life > 1200 ? 5 : 7);
-        let spread   = life > 2300 ? 22 : (life > 1200 ? 18 : 14);
-        let speed    = life > 2300 ? 2.5 : (life > 1200 ? 3.0 : 3.8);
-        let interval = life > 2300 ? 90 : (life > 1200 ? 70 : 50);
+        let n        = 3;
+        let spread   = 22;
+        let spd      = 2.5;
+        let interval = 90;
+        if(life <= 2300) { n = 5; spread = 18; spd = 3.0; interval = 70; }
+        if(life <= 1200) { n = 7; spread = 14; spd = 3.8; interval = 50; }
 
         if(timer % interval == 0) {
-            AimedNWay(bx, by, n, spread, speed, 1);
+            AimedNWay(bx, by, n, spread, spd, 1);
         }
 
         timer++;
@@ -116,19 +97,16 @@ task AimedBreak(boss) {
     }
 }
 
-// 自機狙いN-Way散弾
 function AimedNWay(x, y, n, spread, speed, graphic) {
-    let baseAngle = atan2(GetPlayerY() - y, GetPlayerX() - x);
+    let base = atan2(GetPlayerY() - y, GetPlayerX() - x);
     loop(n) {
         let offset = (loop_index - (n - 1) / 2.0) * spread;
-        CreateShotA(x, y, speed, baseAngle + offset, graphic, 4);
+        CreateShotA(x, y, speed, base + offset, graphic, 4);
     }
 }
 
-// 全方位リング
 function Ring(x, y, n, offset, speed, graphic) {
     loop(n) {
-        let angle = (loop_index / n) * 360 + offset;
-        CreateShotA(x, y, speed, angle, graphic, 0);
+        CreateShotA(x, y, speed, (loop_index / n) * 360 + offset, graphic, 0);
     }
 }

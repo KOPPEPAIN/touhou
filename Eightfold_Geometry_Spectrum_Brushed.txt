@@ -75,7 +75,51 @@ function ClearCurrentPhase(color) {
     DeleteShotAll(TYPE_ALL, TYPE_ITEM);
     ObjMove_SetDestAtFrame(objBoss, BOSS_X, BOSS_Y, 54);
     TPlayTransitionSound();
-    wait(58);
+    TInterludeDanmaku(color);
+    wait(160);
+    DeleteShotAll(TYPE_SHOT, TYPE_ITEM);
+}
+
+task TInterludeDanmaku(color) {
+    let arms = 6;
+    let i = 0;
+    while (i < arms) {
+        TInterludeArm(i * 360 / arms, color);
+        i++;
+    }
+    wait(20);
+    i = 0;
+    while (i < arms) {
+        TInterludeArm(i * 360 / arms + 180 / arms, color);
+        i++;
+    }
+}
+
+task TInterludeArm(baseAngle, color) {
+    let count = 5;
+    let i = 0;
+    while (i < count) {
+        TInterludeShot(baseAngle, i, color);
+        i++;
+        wait(3);
+    }
+}
+
+task TInterludeShot(baseAngle, index, color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let shot = CreateShotA1(cx, cy, 1.4, baseAngle, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < 140) {
+        let depth = sin(t * 4 - index * 30);
+        let scale = 1.0 + depth * 0.5;
+        ObjRender_SetScaleXYZ(shot, scale, scale, 1);
+        ObjRender_SetAlpha(shot, 140 + depth * 110);
+        ObjMove_SetAngle(shot, ObjMove_GetAngle(shot) + 0.9 * cos(t * 1.5));
+        t++;
+        yield;
+    }
 }
 
 task TAnnounce(textStr, color) {
@@ -140,61 +184,57 @@ function get_star_prism(points, innerRatio, depth, twist) {
     return [v, e];
 }
 
-function get_crescent() {
+function get_gyroscope() {
     let v = []; let e = []; let div = 12;
-    let i = 0;
-    while (i <= div) {
-        let angle = -150 + i * 300 / div;
-        v = v ~ [[cos(angle), sin(angle), 0.9]];
-        i++;
+    let radii = [1.0, 0.82, 0.64];
+    let ring = 0;
+    while (ring < 3) {
+        let r = radii[ring];
+        let i = 0;
+        while (i < div) {
+            let a = i * 360 / div;
+            if (ring == 0) {
+                v = v ~ [[cos(a) * r, sin(a) * r, 0]];
+            } else if (ring == 1) {
+                v = v ~ [[0, cos(a) * r, sin(a) * r]];
+            } else {
+                v = v ~ [[cos(a) * r, 0, sin(a) * r]];
+            }
+            i++;
+        }
+        ring++;
     }
-    i = 0;
-    while (i <= div) {
-        let angle = 150 - i * 300 / div;
-        v = v ~ [[0.5 + cos(angle) * 0.75, sin(angle) * 0.75, 0.9]];
-        i++;
-    }
-    let frontCount = length(v);
-    i = 0;
-    while (i < frontCount) {
-        v = v ~ [[v[i][0], v[i][1], -0.9]];
-        i++;
-    }
-    i = 0;
-    while (i < frontCount) {
-        let next = (i + 1) % frontCount;
-        e = e ~ [[i, next]];
-        e = e ~ [[frontCount + i, frontCount + next]];
-        e = e ~ [[i, frontCount + i]];
-        i++;
+    ring = 0;
+    while (ring < 3) {
+        let i = 0;
+        while (i < div) {
+            let next = (i + 1) % div;
+            e = e ~ [[ring * div + i, ring * div + next]];
+            i++;
+        }
+        ring++;
     }
     return [v, e];
 }
 
-function get_twin_rings() {
-    let v = []; let e = []; let div = 10;
+function get_hex_core() {
+    let v = []; let e = []; let div = 6;
     let i = 0;
     while (i < div) {
-        let angle = i * 360 / div;
-        v = v ~ [[-0.55 + cos(angle) * 0.65, sin(angle) * 0.65, 0.5]];
+        let a = i * 360 / div;
+        v = v ~ [[cos(a), sin(a), 0.9]];
         i++;
     }
     i = 0;
     while (i < div) {
-        let angle = i * 360 / div;
-        v = v ~ [[-0.55 + cos(angle) * 0.65, sin(angle) * 0.65, -0.5]];
+        let a = i * 360 / div;
+        v = v ~ [[cos(a), sin(a), -0.9]];
         i++;
     }
     i = 0;
     while (i < div) {
-        let angle = i * 360 / div;
-        v = v ~ [[0.55 + cos(angle) * 0.65, sin(angle) * 0.65, 0.5]];
-        i++;
-    }
-    i = 0;
-    while (i < div) {
-        let angle = i * 360 / div;
-        v = v ~ [[0.55 + cos(angle) * 0.65, sin(angle) * 0.65, -0.5]];
+        let a = i * 360 / div + 30;
+        v = v ~ [[cos(a) * 0.4, sin(a) * 0.4, 0]];
         i++;
     }
     i = 0;
@@ -202,48 +242,119 @@ function get_twin_rings() {
         let next = (i + 1) % div;
         e = e ~ [[i, next]];
         e = e ~ [[div + i, div + next]];
-        e = e ~ [[i, div + i]];
         e = e ~ [[2 * div + i, 2 * div + next]];
-        e = e ~ [[3 * div + i, 3 * div + next]];
-        e = e ~ [[2 * div + i, 3 * div + i]];
+        e = e ~ [[i, div + i]];
+        e = e ~ [[2 * div + i, i]];
+        e = e ~ [[2 * div + i, div + i]];
         i++;
     }
     return [v, e];
 }
 
-function get_snowflake() {
-    let v = []; let e = []; let branches = 6;
-    v = v ~ [[0, 0, 0.6]];
-    v = v ~ [[0, 0, -0.6]];
+function get_lattice_cube() {
+    let v = []; let e = [];
+    let outer = 0.85; let inner = 0.4;
+    let signs = [[-1,-1,-1],[-1,-1,1],[-1,1,-1],[-1,1,1],[1,-1,-1],[1,-1,1],[1,1,-1],[1,1,1]];
     let i = 0;
-    while (i < branches) {
-        let angle = i * 360 / branches;
-        let tipF = length(v);
-        v = v ~ [[cos(angle), sin(angle), 0.6]];
-        let tipB = length(v);
-        v = v ~ [[cos(angle), sin(angle), -0.6]];
-        let s1 = length(v);
-        v = v ~ [[cos(angle + 25) * 0.5, sin(angle + 25) * 0.5, 0.6]];
-        let s2 = length(v);
-        v = v ~ [[cos(angle - 25) * 0.5, sin(angle - 25) * 0.5, 0.6]];
-        e = e ~ [[0, tipF]];
-        e = e ~ [[1, tipB]];
-        e = e ~ [[tipF, tipB]];
-        e = e ~ [[tipF, s1]];
-        e = e ~ [[tipF, s2]];
+    while (i < 8) {
+        v = v ~ [[signs[i][0] * outer, signs[i][1] * outer, signs[i][2] * outer]];
         i++;
     }
+    i = 0;
+    while (i < 8) {
+        v = v ~ [[signs[i][0] * inner, signs[i][1] * inner, signs[i][2] * inner]];
+        i++;
+    }
+    let cubeEdges = [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
+    i = 0;
+    while (i < length(cubeEdges)) {
+        e = e ~ [[cubeEdges[i][0], cubeEdges[i][1]]];
+        e = e ~ [[8 + cubeEdges[i][0], 8 + cubeEdges[i][1]]];
+        i++;
+    }
+    i = 0;
+    while (i < 8) {
+        e = e ~ [[i, 8 + i]];
+        i++;
+    }
+    return [v, e];
+}
+
+function get_orbital_rings() {
+    let v = []; let e = []; let div = 14; let t = 25;
+    let i = 0;
+    while (i < div) {
+        let a = i * 360 / div;
+        v = v ~ [[cos(a), sin(a) * cos(t), sin(a) * sin(t)]];
+        i++;
+    }
+    i = 0;
+    while (i < div) {
+        let a = i * 360 / div;
+        v = v ~ [[cos(a) * cos(t) * 0.85, sin(a) * 0.85, cos(a) * sin(t) * 0.85]];
+        i++;
+    }
+    i = 0;
+    while (i < div) {
+        let next = (i + 1) % div;
+        e = e ~ [[i, next]];
+        e = e ~ [[div + i, div + next]];
+        i++;
+    }
+    return [v, e];
+}
+
+function get_helix() {
+    let v = []; let e = []; let n = 16; let turns = 2;
+    let i = 0;
+    while (i < n) {
+        let a = i * 360 * turns / (n - 1);
+        let z = -1 + 2 * i / (n - 1);
+        v = v ~ [[cos(a) * 0.8, sin(a) * 0.8, z]];
+        i++;
+    }
+    i = 0;
+    while (i < n) {
+        let a = i * 360 * turns / (n - 1) + 180;
+        let z = -1 + 2 * i / (n - 1);
+        v = v ~ [[cos(a) * 0.8, sin(a) * 0.8, z]];
+        i++;
+    }
+    i = 0;
+    while (i < n - 1) {
+        e = e ~ [[i, i + 1]];
+        e = e ~ [[n + i, n + i + 1]];
+        i++;
+    }
+    i = 0;
+    while (i < n) {
+        if (i % 3 == 0) {
+            e = e ~ [[i, n + i]];
+        }
+        i++;
+    }
+    return [v, e];
+}
+
+function get_crystal_core() {
+    let v = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    let i = 0;
+    while (i < 6) {
+        v = v ~ [[v[i][0] * 1.6, v[i][1] * 1.6, v[i][2] * 1.6]];
+        i++;
+    }
+    let e = [[0,2],[0,3],[0,4],[0,5],[1,2],[1,3],[1,4],[1,5],[2,4],[2,5],[3,4],[3,5],[0,6],[1,7],[2,8],[3,9],[4,10],[5,11]];
     return [v, e];
 }
 
 function GetPhaseShape(phase) {
-    if (phase == 1) { return get_star_prism(5, 0.45, 1.3, 0); }
-    if (phase == 2) { return get_star_prism(6, 0.5, 1.0, 30); }
-    if (phase == 3) { return get_star_prism(4, 0.35, 1.2, 45); }
+    if (phase == 1) { return get_gyroscope(); }
+    if (phase == 2) { return get_hex_core(); }
+    if (phase == 3) { return get_lattice_cube(); }
     if (phase == 4) { return get_star_prism(7, 0.55, 0.95, 25.7); }
-    if (phase == 5) { return get_crescent(); }
-    if (phase == 6) { return get_twin_rings(); }
-    if (phase == 7) { return get_snowflake(); }
+    if (phase == 5) { return get_orbital_rings(); }
+    if (phase == 6) { return get_helix(); }
+    if (phase == 7) { return get_crystal_core(); }
     return get_star_prism(10, 0.6, 0.8, 18);
 }
 
@@ -270,32 +381,36 @@ function GetPhaseLaserColor(phase) {
 }
 
 function GetPhaseName(phase) {
-    if (phase == 1) { return "Red Pentagram / Star Blade Prism"; }
-    if (phase == 2) { return "Amber Hexagram / Ward Lantern"; }
-    if (phase == 3) { return "Topaz Cross Star / Shuriken Blades"; }
+    if (phase == 1) { return "Red Gyroscope / Triple Axis Core"; }
+    if (phase == 2) { return "Amber Hex Reactor / Power Core"; }
+    if (phase == 3) { return "Topaz Hologram / Lattice Cube"; }
     if (phase == 4) { return "Emerald Heptagram / Sigil Spire"; }
-    if (phase == 5) { return "Celadon Crescent / Lunar Halo"; }
-    if (phase == 6) { return "Sapphire Twin Rings / Infinity Halo"; }
-    if (phase == 7) { return "Amethyst Snowflake / Ice Crystal Spire"; }
-    return "White Decagram / Grand Mandala Seal";
+    if (phase == 5) { return "Celadon Orbital Rings / Twin Ellipse Halo"; }
+    if (phase == 6) { return "Sapphire Double Helix / Data Cascade"; }
+    if (phase == 7) { return "Amethyst Energy Crystal / Spike Core"; }
+    return "White Decagram / Singularity Seal";
 }
 
 function GetPhaseRadius(phase) {
-    if (phase == 1) { return 105; }
+    if (phase == 1) { return 120; }
     if (phase == 2) { return 100; }
-    if (phase == 3) { return 100; }
+    if (phase == 3) { return 95; }
     if (phase == 4) { return 102; }
-    if (phase == 5) { return 95; }
-    if (phase == 6) { return 98; }
-    if (phase == 7) { return 102; }
-    return 102;
+    if (phase == 5) { return 115; }
+    if (phase == 6) { return 100; }
+    if (phase == 7) { return 85; }
+    return 100;
 }
 
 function GetWaveRadius(phase) {
-    if (phase <= 2) { return 60; }
-    if (phase <= 5) { return 56; }
-    if (phase <= 7) { return 54; }
-    return 50;
+    if (phase == 1) { return 66; }
+    if (phase == 2) { return 56; }
+    if (phase == 3) { return 54; }
+    if (phase == 4) { return 58; }
+    if (phase == 5) { return 62; }
+    if (phase == 6) { return 56; }
+    if (phase == 7) { return 50; }
+    return 56;
 }
 
 function GetWaveInterval(phase) {
@@ -421,7 +536,7 @@ task TBulletWireframeStatic(vBase, eBase, color, phase, baseR) {
             let sx2 = cx + p2[0] * scale2;
             let sy2 = cy + p2[1] * scale2;
             let edgeZ = (p1[2] + p2[2]) * 0.5;
-            DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, edgeZ, 4.5 + pulse * 1.5, false);
+            DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, edgeZ, 5.5 + pulse * 1.8, false);
             i++;
         }
         localFrame++;

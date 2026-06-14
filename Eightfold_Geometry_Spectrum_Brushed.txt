@@ -71,54 +71,242 @@ task TPlayTransitionSound() {
     }
 }
 
-function ClearCurrentPhase(color) {
+function ClearCurrentPhase(phase, color) {
     DeleteShotAll(TYPE_ALL, TYPE_ITEM);
     ObjMove_SetDestAtFrame(objBoss, BOSS_X, BOSS_Y, 54);
     TPlayTransitionSound();
-    TInterludeDanmaku(color);
-    wait(160);
+    TInterludeDanmaku(phase, color);
+    wait(260);
     DeleteShotAll(TYPE_SHOT, TYPE_ITEM);
 }
 
-task TInterludeDanmaku(color) {
-    let arms = 6;
-    let i = 0;
-    while (i < arms) {
-        TInterludeArm(i * 360 / arms, color);
-        i++;
-    }
-    wait(20);
-    i = 0;
-    while (i < arms) {
-        TInterludeArm(i * 360 / arms + 180 / arms, color);
-        i++;
-    }
+task TInterludeDanmaku(phase, color) {
+    if (phase == 1) { TInterludeSpikeBurst(color); }
+    else if (phase == 2) { TInterludeMobiusSpiral(color); }
+    else if (phase == 3) { TInterludeOrbitRelease(color); }
+    else if (phase == 4) { TInterludeWaveCurtain(color); }
+    else if (phase == 5) { TInterludeBreathe(color); }
+    else if (phase == 6) { TInterludeCrossSpiral(color); }
+    else if (phase == 7) { TInterludeShimmer(color); }
+    else { TInterludeMandala(color); }
 }
 
-task TInterludeArm(baseAngle, color) {
-    let count = 5;
-    let i = 0;
-    while (i < count) {
-        TInterludeShot(baseAngle, i, color);
-        i++;
-        wait(3);
-    }
-}
-
-task TInterludeShot(baseAngle, index, color) {
-    let cx = ObjMove_GetX(objBoss);
-    let cy = ObjMove_GetY(objBoss);
-    let shot = CreateShotA1(cx, cy, 1.4, baseAngle, color, 24);
+task TFlowShot(x, y, speed, baseAngle, color, curveAmp, life) {
+    let shot = CreateShotA1(x, y, speed, baseAngle, color, 24);
     ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
     let t = 0;
-    while (!Obj_IsDeleted(shot) && t < 140) {
-        let depth = sin(t * 4 - index * 30);
+    while (!Obj_IsDeleted(shot) && t < life) {
+        let depth = sin(t * 4);
         let scale = 1.0 + depth * 0.5;
         ObjRender_SetScaleXYZ(shot, scale, scale, 1);
         ObjRender_SetAlpha(shot, 140 + depth * 110);
-        ObjMove_SetAngle(shot, ObjMove_GetAngle(shot) + 0.9 * cos(t * 1.5));
+        ObjMove_SetAngle(shot, ObjMove_GetAngle(shot) + curveAmp * cos(t * 1.5));
         t++;
         yield;
+    }
+}
+
+task TSpiralShot(x, y, baseAngle, color, dir, life) {
+    let shot = CreateShotA1(x, y, 0.6, baseAngle, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        ObjMove_SetSpeed(shot, 0.6 + t * 0.035);
+        ObjMove_SetAngle(shot, ObjMove_GetAngle(shot) + dir * (4.0 - t * 0.018));
+        let depth = sin(t * 5);
+        ObjRender_SetAlpha(shot, 150 + depth * 100);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.35, 1 + depth * 0.35, 1);
+        t++;
+        yield;
+    }
+}
+
+task TOrbitReleaseShot(cx, cy, radius, startAngle, angularSpeed, color, orbitFrames, life) {
+    let angle = startAngle;
+    let shot = CreateShotA1(cx + radius * cos(angle), cy + radius * sin(angle), 0, 0, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < orbitFrames) {
+        angle += angularSpeed;
+        ObjMove_SetPosition(shot, cx + radius * cos(angle), cy + radius * sin(angle));
+        let depth = sin(t * 6);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.4, 1 + depth * 0.4, 1);
+        ObjRender_SetAlpha(shot, 160 + depth * 90);
+        t++;
+        yield;
+    }
+    ObjMove_SetAngle(shot, angle);
+    ObjMove_SetSpeed(shot, 2.2);
+    ObjMove_SetAcceleration(shot, 0.015);
+    t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        let depth = sin(t * 4);
+        ObjRender_SetAlpha(shot, 150 + depth * 100);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.3, 1 + depth * 0.3, 1);
+        t++;
+        yield;
+    }
+}
+
+task TWaveShot(x, y, vx, vy, color, freq, amp, life) {
+    let shot = CreateShotA1(x, y, 0, 0, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    let baseX = x;
+    let baseY = y;
+    let norm = ((vx * vx + vy * vy) ^ 0.5);
+    let nx = 0;
+    let ny = 0;
+    if (norm > 0) {
+        nx = -vy / norm;
+        ny = vx / norm;
+    }
+    while (!Obj_IsDeleted(shot) && t < life) {
+        baseX += vx;
+        baseY += vy;
+        let offset = sin(t * freq) * amp;
+        ObjMove_SetPosition(shot, baseX + nx * offset, baseY + ny * offset);
+        let depth = cos(t * 4);
+        ObjRender_SetAlpha(shot, 140 + depth * 110);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.4, 1 + depth * 0.4, 1);
+        t++;
+        yield;
+    }
+}
+
+task TBreatheShot(cx, cy, angle, color, inFrames, life) {
+    let dist = 140;
+    let shot = CreateShotA1(cx + dist * cos(angle), cy + dist * sin(angle), 0, 0, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < inFrames) {
+        let r = dist * (1 - t / inFrames);
+        ObjMove_SetPosition(shot, cx + r * cos(angle), cy + r * sin(angle));
+        let depth = sin(t * 6);
+        ObjRender_SetAlpha(shot, 120 + depth * 110);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.5, 1 + depth * 0.5, 1);
+        t++;
+        yield;
+    }
+    ObjMove_SetAngle(shot, angle + 180);
+    ObjMove_SetSpeed(shot, 0.3);
+    ObjMove_SetAcceleration(shot, 0.04);
+    t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        let depth = sin(t * 5);
+        ObjRender_SetAlpha(shot, 130 + depth * 110);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.4, 1 + depth * 0.4, 1);
+        t++;
+        yield;
+    }
+}
+
+task TInterludeSpikeBurst(color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let arms = 8;
+    let wave = 0;
+    while (wave < 3) {
+        let i = 0;
+        while (i < arms) {
+            let angle = i * 360 / arms + wave * 22.5;
+            TFlowShot(cx, cy, 1.6, angle, color, 0.8 + wave * 0.3, 150);
+            i++;
+        }
+        wave++;
+        wait(26);
+    }
+}
+
+task TInterludeMobiusSpiral(color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 12) {
+        let angle = i * 30;
+        let dir = 1;
+        if (i % 2 == 1) {
+            dir = -1;
+        }
+        TSpiralShot(cx, cy, angle, color, dir, 170);
+        i++;
+        wait(6);
+    }
+}
+
+task TInterludeOrbitRelease(color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 10) {
+        let angle = i * 36;
+        TOrbitReleaseShot(cx, cy, 55, angle, 4.0, color, 70, 130);
+        i++;
+        wait(5);
+    }
+}
+
+task TInterludeWaveCurtain(color) {
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 9) {
+        TWaveShot(-20, cy - 80 + i * 20, 2.0, 0, color, 6, 40, 200);
+        TWaveShot(404, cy - 80 + i * 20, -2.0, 0, color, 6, 40, 200);
+        i++;
+        wait(8);
+    }
+}
+
+task TInterludeBreathe(color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 10) {
+        TBreatheShot(cx, cy, i * 36, color, 60, 160);
+        i++;
+        wait(8);
+    }
+}
+
+task TInterludeCrossSpiral(color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 14) {
+        let angle = i * 360 / 14;
+        let dir = 1;
+        if (i % 2 == 0) {
+            dir = -1;
+        }
+        TSpiralShot(cx, cy, angle, color, dir, 180);
+        i++;
+        wait(5);
+    }
+}
+
+task TInterludeShimmer(color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 16) {
+        let angle = rand(0, 360);
+        let curve = rand(0, 100) / 100.0 * 1.6 - 0.8;
+        TFlowShot(cx, cy, rand(100, 180) / 100.0, angle, color, curve, rand(140, 200));
+        i++;
+        wait(7);
+    }
+}
+
+task TInterludeMandala(color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let arms = 12;
+    let i = 0;
+    while (i < arms) {
+        TFlowShot(cx, cy, 1.7, i * 30, color, 1.1, 180);
+        TOrbitReleaseShot(cx, cy, 60, i * 30 + 15, 3.0, color, 50, 150);
+        i++;
+        wait(6);
     }
 }
 
@@ -151,26 +339,41 @@ task TAnnounce(textStr, color) {
     Obj_Delete(objText);
 }
 
-function get_star_prism(points, innerRatio, depth, twist) {
-    let v = []; let e = []; let n = points * 2;
+function get_spike_bipyramid() {
+    let v = [[0, 0, 1.5], [0, 0, -1.5]];
+    let e = [];
+    let div = 8;
+    let i = 0;
+    while (i < div) {
+        let a = i * 360 / div;
+        v = v ~ [[cos(a), sin(a), 0]];
+        i++;
+    }
+    i = 0;
+    while (i < div) {
+        let next = (i + 1) % div;
+        e = e ~ [[2 + i, 2 + next]];
+        e = e ~ [[0, 2 + i]];
+        e = e ~ [[1, 2 + i]];
+        i++;
+    }
+    return [v, e];
+}
+
+function get_mobius_band() {
+    let v = []; let e = []; let n = 14;
     let i = 0;
     while (i < n) {
-        let angle = i * 360 / n;
-        let r = 1.0;
-        if (i % 2 == 1) {
-            r = innerRatio;
-        }
-        v = v ~ [[cos(angle) * r, sin(angle) * r, depth]];
+        let a = i * 360 / n;
+        let half = a / 2;
+        v = v ~ [[cos(a) * (1 + 0.35 * cos(half)), sin(a) * (1 + 0.35 * cos(half)), 0.35 * sin(half)]];
         i++;
     }
     i = 0;
     while (i < n) {
-        let angle = i * 360 / n + twist;
-        let r = 1.0;
-        if (i % 2 == 1) {
-            r = innerRatio;
-        }
-        v = v ~ [[cos(angle) * r, sin(angle) * r, -depth]];
+        let a = i * 360 / n;
+        let half = a / 2;
+        v = v ~ [[cos(a) * (1 - 0.35 * cos(half)), sin(a) * (1 - 0.35 * cos(half)), -0.35 * sin(half)]];
         i++;
     }
     i = 0;
@@ -178,146 +381,109 @@ function get_star_prism(points, innerRatio, depth, twist) {
         let next = (i + 1) % n;
         e = e ~ [[i, next]];
         e = e ~ [[n + i, n + next]];
-        e = e ~ [[i, n + i]];
-        i++;
-    }
-    return [v, e];
-}
-
-function get_gyroscope() {
-    let v = []; let e = []; let div = 12;
-    let radii = [1.0, 0.82, 0.64];
-    let ring = 0;
-    while (ring < 3) {
-        let r = radii[ring];
-        let i = 0;
-        while (i < div) {
-            let a = i * 360 / div;
-            if (ring == 0) {
-                v = v ~ [[cos(a) * r, sin(a) * r, 0]];
-            } else if (ring == 1) {
-                v = v ~ [[0, cos(a) * r, sin(a) * r]];
-            } else {
-                v = v ~ [[cos(a) * r, 0, sin(a) * r]];
-            }
-            i++;
+        if (i % 2 == 0) {
+            e = e ~ [[i, n + i]];
         }
-        ring++;
-    }
-    ring = 0;
-    while (ring < 3) {
-        let i = 0;
-        while (i < div) {
-            let next = (i + 1) % div;
-            e = e ~ [[ring * div + i, ring * div + next]];
-            i++;
-        }
-        ring++;
-    }
-    return [v, e];
-}
-
-function get_hex_core() {
-    let v = []; let e = []; let div = 6;
-    let i = 0;
-    while (i < div) {
-        let a = i * 360 / div;
-        v = v ~ [[cos(a), sin(a), 0.9]];
-        i++;
-    }
-    i = 0;
-    while (i < div) {
-        let a = i * 360 / div;
-        v = v ~ [[cos(a), sin(a), -0.9]];
-        i++;
-    }
-    i = 0;
-    while (i < div) {
-        let a = i * 360 / div + 30;
-        v = v ~ [[cos(a) * 0.4, sin(a) * 0.4, 0]];
-        i++;
-    }
-    i = 0;
-    while (i < div) {
-        let next = (i + 1) % div;
-        e = e ~ [[i, next]];
-        e = e ~ [[div + i, div + next]];
-        e = e ~ [[2 * div + i, 2 * div + next]];
-        e = e ~ [[i, div + i]];
-        e = e ~ [[2 * div + i, i]];
-        e = e ~ [[2 * div + i, div + i]];
         i++;
     }
     return [v, e];
 }
 
-function get_lattice_cube() {
+function get_tesseract_core() {
     let v = []; let e = [];
-    let outer = 0.85; let inner = 0.4;
     let signs = [[-1,-1,-1],[-1,-1,1],[-1,1,-1],[-1,1,1],[1,-1,-1],[1,-1,1],[1,1,-1],[1,1,1]];
     let i = 0;
     while (i < 8) {
-        v = v ~ [[signs[i][0] * outer, signs[i][1] * outer, signs[i][2] * outer]];
+        v = v ~ [[signs[i][0], signs[i][1], signs[i][2]]];
         i++;
     }
+    let axis = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
     i = 0;
-    while (i < 8) {
-        v = v ~ [[signs[i][0] * inner, signs[i][1] * inner, signs[i][2] * inner]];
+    while (i < 6) {
+        v = v ~ [[axis[i][0] * 0.6, axis[i][1] * 0.6, axis[i][2] * 0.6]];
         i++;
     }
     let cubeEdges = [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
     i = 0;
     while (i < length(cubeEdges)) {
         e = e ~ [[cubeEdges[i][0], cubeEdges[i][1]]];
-        e = e ~ [[8 + cubeEdges[i][0], 8 + cubeEdges[i][1]]];
+        i++;
+    }
+    let octEdges = [[0,2],[0,3],[0,4],[0,5],[1,2],[1,3],[1,4],[1,5],[2,4],[2,5],[3,4],[3,5]];
+    i = 0;
+    while (i < length(octEdges)) {
+        e = e ~ [[8 + octEdges[i][0], 8 + octEdges[i][1]]];
         i++;
     }
     i = 0;
     while (i < 8) {
-        e = e ~ [[i, 8 + i]];
+        e = e ~ [[i, 8 + (i % 6)]];
         i++;
     }
     return [v, e];
 }
 
-function get_orbital_rings() {
-    let v = []; let e = []; let div = 14; let t = 25;
+function get_antiprism(n) {
+    let v = []; let e = [];
     let i = 0;
-    while (i < div) {
-        let a = i * 360 / div;
-        v = v ~ [[cos(a), sin(a) * cos(t), sin(a) * sin(t)]];
+    while (i < n) {
+        let a = i * 360 / n;
+        v = v ~ [[cos(a), sin(a), 0.85]];
         i++;
     }
     i = 0;
-    while (i < div) {
-        let a = i * 360 / div;
-        v = v ~ [[cos(a) * cos(t) * 0.85, sin(a) * 0.85, cos(a) * sin(t) * 0.85]];
+    while (i < n) {
+        let a = i * 360 / n + 180 / n;
+        v = v ~ [[cos(a), sin(a), -0.85]];
         i++;
     }
     i = 0;
-    while (i < div) {
-        let next = (i + 1) % div;
+    while (i < n) {
+        let next = (i + 1) % n;
+        let prev = (i - 1 + n) % n;
         e = e ~ [[i, next]];
-        e = e ~ [[div + i, div + next]];
+        e = e ~ [[n + i, n + next]];
+        e = e ~ [[i, n + i]];
+        e = e ~ [[i, n + prev]];
         i++;
     }
     return [v, e];
 }
 
-function get_helix() {
-    let v = []; let e = []; let n = 16; let turns = 2;
+function get_trefoil_knot() {
+    let v = []; let e = []; let n = 24;
+    let i = 0;
+    while (i < n) {
+        let t = i * 720 / n;
+        let x = sin(t) + 2 * sin(2 * t);
+        let y = cos(t) - 2 * cos(2 * t);
+        let z = -sin(3 * t);
+        v = v ~ [[x * 0.32, y * 0.32, z * 0.55]];
+        i++;
+    }
+    i = 0;
+    while (i < n) {
+        let next = (i + 1) % n;
+        e = e ~ [[i, next]];
+        i++;
+    }
+    return [v, e];
+}
+
+function get_dna_double_helix() {
+    let v = []; let e = []; let n = 14; let turns = 1.5;
     let i = 0;
     while (i < n) {
         let a = i * 360 * turns / (n - 1);
         let z = -1 + 2 * i / (n - 1);
-        v = v ~ [[cos(a) * 0.8, sin(a) * 0.8, z]];
+        v = v ~ [[cos(a) * 0.85, sin(a) * 0.85, z]];
         i++;
     }
     i = 0;
     while (i < n) {
         let a = i * 360 * turns / (n - 1) + 180;
         let z = -1 + 2 * i / (n - 1);
-        v = v ~ [[cos(a) * 0.8, sin(a) * 0.8, z]];
+        v = v ~ [[cos(a) * 0.85, sin(a) * 0.85, z]];
         i++;
     }
     i = 0;
@@ -328,34 +494,61 @@ function get_helix() {
     }
     i = 0;
     while (i < n) {
-        if (i % 3 == 0) {
-            e = e ~ [[i, n + i]];
-        }
+        e = e ~ [[i, n + i]];
         i++;
     }
     return [v, e];
 }
 
-function get_crystal_core() {
-    let v = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+function get_stella_octangula() {
+    let s = 0.85;
+    let v = [[s,s,s],[s,-s,-s],[-s,s,-s],[-s,-s,s],[-s,-s,-s],[-s,s,s],[s,-s,s],[s,s,-s]];
+    let e = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3],[4,5],[4,6],[4,7],[5,6],[5,7],[6,7]];
+    return [v, e];
+}
+
+function get_mandala_wheel() {
+    let v = []; let e = []; let div = 12;
     let i = 0;
-    while (i < 6) {
-        v = v ~ [[v[i][0] * 1.6, v[i][1] * 1.6, v[i][2] * 1.6]];
+    while (i < div) {
+        let a = i * 360 / div;
+        v = v ~ [[cos(a), sin(a), 0]];
         i++;
     }
-    let e = [[0,2],[0,3],[0,4],[0,5],[1,2],[1,3],[1,4],[1,5],[2,4],[2,5],[3,4],[3,5],[0,6],[1,7],[2,8],[3,9],[4,10],[5,11]];
+    i = 0;
+    while (i < div) {
+        let a = i * 360 / div + 15;
+        v = v ~ [[cos(a) * 0.55, sin(a) * 0.55, 0.6]];
+        i++;
+    }
+    i = 0;
+    while (i < div) {
+        let a = i * 360 / div - 15;
+        v = v ~ [[cos(a) * 0.55, sin(a) * 0.55, -0.6]];
+        i++;
+    }
+    i = 0;
+    while (i < div) {
+        let next = (i + 1) % div;
+        e = e ~ [[i, next]];
+        e = e ~ [[div + i, div + next]];
+        e = e ~ [[2 * div + i, 2 * div + next]];
+        e = e ~ [[i, div + i]];
+        e = e ~ [[i, 2 * div + i]];
+        i++;
+    }
     return [v, e];
 }
 
 function GetPhaseShape(phase) {
-    if (phase == 1) { return get_gyroscope(); }
-    if (phase == 2) { return get_hex_core(); }
-    if (phase == 3) { return get_lattice_cube(); }
-    if (phase == 4) { return get_star_prism(7, 0.55, 0.95, 25.7); }
-    if (phase == 5) { return get_orbital_rings(); }
-    if (phase == 6) { return get_helix(); }
-    if (phase == 7) { return get_crystal_core(); }
-    return get_star_prism(10, 0.6, 0.8, 18);
+    if (phase == 1) { return get_spike_bipyramid(); }
+    if (phase == 2) { return get_mobius_band(); }
+    if (phase == 3) { return get_tesseract_core(); }
+    if (phase == 4) { return get_antiprism(7); }
+    if (phase == 5) { return get_trefoil_knot(); }
+    if (phase == 6) { return get_dna_double_helix(); }
+    if (phase == 7) { return get_stella_octangula(); }
+    return get_mandala_wheel();
 }
 
 function GetPhaseColor(phase) {
@@ -381,47 +574,47 @@ function GetPhaseLaserColor(phase) {
 }
 
 function GetPhaseName(phase) {
-    if (phase == 1) { return "Red Gyroscope / Triple Axis Core"; }
-    if (phase == 2) { return "Amber Hex Reactor / Power Core"; }
-    if (phase == 3) { return "Topaz Hologram / Lattice Cube"; }
-    if (phase == 4) { return "Emerald Heptagram / Sigil Spire"; }
-    if (phase == 5) { return "Celadon Orbital Rings / Twin Ellipse Halo"; }
+    if (phase == 1) { return "Red Spike Bipyramid / Twin Pole Burst"; }
+    if (phase == 2) { return "Amber Mobius Band / Illusion Loop"; }
+    if (phase == 3) { return "Topaz Tesseract Core / Hollow Hologram"; }
+    if (phase == 4) { return "Emerald Antiprism / Twist Spire"; }
+    if (phase == 5) { return "Celadon Trefoil Knot / Phantom Loop"; }
     if (phase == 6) { return "Sapphire Double Helix / Data Cascade"; }
-    if (phase == 7) { return "Amethyst Energy Crystal / Spike Core"; }
-    return "White Decagram / Singularity Seal";
+    if (phase == 7) { return "Amethyst Stella Octangula / Twin Tetra Core"; }
+    return "White Mandala Wheel / Singularity Seal";
 }
 
 function GetPhaseRadius(phase) {
-    if (phase == 1) { return 120; }
-    if (phase == 2) { return 100; }
-    if (phase == 3) { return 95; }
-    if (phase == 4) { return 102; }
-    if (phase == 5) { return 115; }
-    if (phase == 6) { return 100; }
-    if (phase == 7) { return 85; }
+    if (phase == 1) { return 88; }
+    if (phase == 2) { return 82; }
+    if (phase == 3) { return 64; }
+    if (phase == 4) { return 84; }
+    if (phase == 5) { return 105; }
+    if (phase == 6) { return 82; }
+    if (phase == 7) { return 74; }
     return 100;
 }
 
 function GetWaveRadius(phase) {
-    if (phase == 1) { return 66; }
-    if (phase == 2) { return 56; }
-    if (phase == 3) { return 54; }
-    if (phase == 4) { return 58; }
-    if (phase == 5) { return 62; }
-    if (phase == 6) { return 56; }
-    if (phase == 7) { return 50; }
-    return 56;
+    if (phase == 1) { return 52; }
+    if (phase == 2) { return 50; }
+    if (phase == 3) { return 42; }
+    if (phase == 4) { return 52; }
+    if (phase == 5) { return 60; }
+    if (phase == 6) { return 50; }
+    if (phase == 7) { return 46; }
+    return 58;
 }
 
 function GetWaveInterval(phase) {
-    if (phase == 1) { return 78; }
-    if (phase == 2) { return 84; }
-    if (phase == 3) { return 66; }
-    if (phase == 4) { return 58; }
-    if (phase == 5) { return 68; }
-    if (phase == 6) { return 72; }
-    if (phase == 7) { return 82; }
-    return 96;
+    if (phase == 1) { return 58; }
+    if (phase == 2) { return 62; }
+    if (phase == 3) { return 50; }
+    if (phase == 4) { return 44; }
+    if (phase == 5) { return 52; }
+    if (phase == 6) { return 54; }
+    if (phase == 7) { return 62; }
+    return 72;
 }
 
 function GetMoveType(phase, t) {
@@ -739,7 +932,7 @@ function ExecutePhase(phase) {
     }
 
     globalPhaseID = 0;
-    ClearCurrentPhase(GetPhaseColor(phase));
+    ClearCurrentPhase(phase, GetPhaseColor(phase));
 }
 
 function SetupBossSprite() {

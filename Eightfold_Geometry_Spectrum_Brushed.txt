@@ -81,6 +81,7 @@ function ClearCurrentPhase(phase, color) {
 }
 
 task TInterludeDanmaku(phase, color) {
+    TInterludeAimedLayer(phase, color);
     if (phase == 1) { TInterludeSpikeBurst(color); }
     else if (phase == 2) { TInterludeMobiusSpiral(color); }
     else if (phase == 3) { TInterludeOrbitRelease(color); }
@@ -89,6 +90,97 @@ task TInterludeDanmaku(phase, color) {
     else if (phase == 6) { TInterludeCrossSpiral(color); }
     else if (phase == 7) { TInterludeShimmer(color); }
     else { TInterludeMandala(color); }
+}
+
+task TAimedShot(x, y, speed, angle, color, life) {
+    let shot = CreateShotA1(x, y, speed, angle, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        let depth = sin(t * 4);
+        ObjRender_SetAlpha(shot, 190 + depth * 60);
+        ObjRender_SetScaleXYZ(shot, 1.0 + depth * 0.15, 1.0 + depth * 0.15, 1);
+        t++;
+        yield;
+    }
+}
+
+task TAimedFan(cx, cy, color, count, spread, speed, life) {
+    let baseAngle = GetAngleToPlayer(objBoss);
+    let i = 0;
+    while (i < count) {
+        let offset = 0;
+        if (count > 1) {
+            offset = (i - (count - 1) / 2.0) * spread;
+        }
+        TAimedShot(cx, cy, speed, baseAngle + offset, color, life);
+        i++;
+    }
+}
+
+task TAimedRing(cx, cy, color, count, speed, life, rotOffset) {
+    let i = 0;
+    while (i < count) {
+        let angle = i * 360 / count + rotOffset;
+        TAimedShot(cx, cy, speed, angle, color, life);
+        i++;
+    }
+}
+
+task TInterludeAimedLayer(phase, color) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    if (phase == 1) {
+        while (i < 9) {
+            TAimedFan(cx, cy, color, 5, 9, 2.6, 240);
+            i++;
+            wait(20);
+        }
+    } else if (phase == 2) {
+        while (i < 12) {
+            TAimedFan(cx, cy, color, 3, 14, 2.4, 230);
+            i++;
+            wait(15);
+        }
+    } else if (phase == 3) {
+        while (i < 8) {
+            TAimedRing(cx, cy, color, 10, 2.2, 240, i * 12);
+            i++;
+            wait(24);
+        }
+    } else if (phase == 4) {
+        while (i < 10) {
+            TAimedFan(cx, cy, color, 7, 7, 2.8, 230);
+            i++;
+            wait(18);
+        }
+    } else if (phase == 5) {
+        while (i < 9) {
+            TAimedFan(cx, cy, color, 4, 12, rand(220, 300) / 100.0, 250);
+            i++;
+            wait(20);
+        }
+    } else if (phase == 6) {
+        while (i < 11) {
+            TAimedRing(cx, cy, color, 8, 2.4, 230, i * 16);
+            i++;
+            wait(18);
+        }
+    } else if (phase == 7) {
+        while (i < 14) {
+            TAimedFan(cx, cy, color, 1, 0, rand(240, 340) / 100.0, 220);
+            i++;
+            wait(13);
+        }
+    } else {
+        while (i < 12) {
+            TAimedRing(cx, cy, color, 12, 2.6, 240, i * 10);
+            TAimedFan(cx, cy, color, 5, 8, 2.9, 230);
+            i++;
+            wait(16);
+        }
+    }
 }
 
 task TFlowShot(x, y, speed, baseAngle, color, curveAmp, life) {
@@ -607,14 +699,14 @@ function GetWaveRadius(phase) {
 }
 
 function GetWaveInterval(phase) {
-    if (phase == 1) { return 58; }
-    if (phase == 2) { return 62; }
-    if (phase == 3) { return 50; }
-    if (phase == 4) { return 44; }
-    if (phase == 5) { return 52; }
-    if (phase == 6) { return 54; }
-    if (phase == 7) { return 62; }
-    return 72;
+    if (phase == 1) { return 46; }
+    if (phase == 2) { return 50; }
+    if (phase == 3) { return 40; }
+    if (phase == 4) { return 36; }
+    if (phase == 5) { return 42; }
+    if (phase == 6) { return 44; }
+    if (phase == 7) { return 50; }
+    return 58;
 }
 
 function GetMoveType(phase, t) {
@@ -806,10 +898,9 @@ task TGeometryWave(vBase, eBase, color, phase, baseR, moveType) {
             let wx = p[0] + bx;
             let wy = p[1] + by;
             let wz = p[2] + bz;
-            let scale = get_3d_scale(wz);
             let shot = vertexShots[i];
             if (is_safe_depth(wz)) {
-                ObjMove_SetPosition(shot, originX + wx * scale, originY + wy * scale);
+                ObjMove_SetPosition(shot, originX + wx, originY + wy);
                 ObjRender_SetScaleXYZ(shot, 1.6, 1.6, 1);
                 if (wz > 0) {
                     ObjRender_SetAlpha(shot, 70);
@@ -834,12 +925,10 @@ task TGeometryWave(vBase, eBase, color, phase, baseR, moveType) {
             let w2x = p2[0] + bx;
             let w2y = p2[1] + by;
             let w2z = p2[2] + bz;
-            let scale1 = get_3d_scale(w1z);
-            let scale2 = get_3d_scale(w2z);
-            let sx1 = originX + w1x * scale1;
-            let sy1 = originY + w1y * scale1;
-            let sx2 = originX + w2x * scale2;
-            let sy2 = originY + w2y * scale2;
+            let sx1 = originX + w1x;
+            let sy1 = originY + w1y;
+            let sx2 = originX + w2x;
+            let sy2 = originY + w2y;
             let edgeZ = (w1z + w2z) * 0.5;
             DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, edgeZ, 5.0, true);
             i++;
@@ -874,8 +963,9 @@ task TPattern_Generic(phase) {
         globalAy += 1.45 + phase * 0.10;
         globalAz += 0.85 + phase * 0.08 + 0.2 * cos(t * 3);
 
-        if (t > 42 && t % GetWaveInterval(phase) == 0) {
-            TGeometryWave(shape[0], shape[1], color, phase, waveRadius, GetMoveType(phase, t));
+        if (t > 30 && t % GetWaveInterval(phase) == 0) {
+            TGeometryWave(shape[0], shape[1], color, phase, waveRadius, 0);
+            TGeometryWave(shape[0], shape[1], color, phase, waveRadius, 1);
         }
 
         t++;

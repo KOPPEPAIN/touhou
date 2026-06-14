@@ -81,7 +81,7 @@ function ClearCurrentPhase(phase, color) {
 }
 
 task TInterludeDanmaku(phase, color) {
-    TInterludeAimedLayer(phase, color);
+    TInterludeAimedLayer(phase, color, GetPhaseAccentColor(phase));
     if (phase == 1) { TInterludeSpikeBurst(color); }
     else if (phase == 2) { TInterludeMobiusSpiral(color); }
     else if (phase == 3) { TInterludeOrbitRelease(color); }
@@ -127,56 +127,70 @@ task TAimedRing(cx, cy, color, count, speed, life, rotOffset) {
     }
 }
 
-task TInterludeAimedLayer(phase, color) {
+task TInterludeAimedLayer(phase, color, accent) {
     let cx = ObjMove_GetX(objBoss);
     let cy = ObjMove_GetY(objBoss);
     let i = 0;
     if (phase == 1) {
         while (i < 9) {
-            TAimedFan(cx, cy, color, 5, 9, 2.6, 240);
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 5, 9, 2.6, 240);
             i++;
             wait(20);
         }
     } else if (phase == 2) {
         while (i < 12) {
-            TAimedFan(cx, cy, color, 3, 14, 2.4, 230);
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 3, 14, 2.4, 230);
             i++;
             wait(15);
         }
     } else if (phase == 3) {
         while (i < 8) {
-            TAimedRing(cx, cy, color, 10, 2.2, 240, i * 12);
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedRing(cx, cy, useColor, 10, 2.2, 240, i * 12);
             i++;
             wait(24);
         }
     } else if (phase == 4) {
         while (i < 10) {
-            TAimedFan(cx, cy, color, 7, 7, 2.8, 230);
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 7, 7, 2.8, 230);
             i++;
             wait(18);
         }
     } else if (phase == 5) {
         while (i < 9) {
-            TAimedFan(cx, cy, color, 4, 12, rand(220, 300) / 100.0, 250);
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 4, 12, rand(220, 300) / 100.0, 250);
             i++;
             wait(20);
         }
     } else if (phase == 6) {
         while (i < 11) {
-            TAimedRing(cx, cy, color, 8, 2.4, 230, i * 16);
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedRing(cx, cy, useColor, 8, 2.4, 230, i * 16);
             i++;
             wait(18);
         }
     } else if (phase == 7) {
         while (i < 14) {
-            TAimedFan(cx, cy, color, 1, 0, rand(240, 340) / 100.0, 220);
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 1, 0, rand(240, 340) / 100.0, 220);
             i++;
             wait(13);
         }
     } else {
         while (i < 12) {
             TAimedRing(cx, cy, color, 12, 2.6, 240, i * 10);
-            TAimedFan(cx, cy, color, 5, 8, 2.9, 230);
+            TAimedFan(cx, cy, accent, 5, 8, 2.9, 230);
             i++;
             wait(16);
         }
@@ -654,6 +668,17 @@ function GetPhaseColor(phase) {
     return DS_BALL_SS_WHITE;
 }
 
+function GetPhaseAccentColor(phase) {
+    if (phase == 1) { return DS_BALL_SS_ORANGE; }
+    if (phase == 2) { return DS_BALL_SS_YELLOW; }
+    if (phase == 3) { return DS_BALL_SS_GREEN; }
+    if (phase == 4) { return DS_BALL_SS_SKY; }
+    if (phase == 5) { return DS_BALL_SS_BLUE; }
+    if (phase == 6) { return DS_BALL_SS_PURPLE; }
+    if (phase == 7) { return DS_BALL_SS_RED; }
+    return DS_BALL_SS_SKY;
+}
+
 function GetPhaseLaserColor(phase) {
     if (phase == 1) { return DS_RICE_S_RED; }
     if (phase == 2) { return DS_RICE_S_ORANGE; }
@@ -821,7 +846,7 @@ task TBulletWireframeStatic(vBase, eBase, color, phase, baseR) {
             let sx2 = cx + p2[0] * scale2;
             let sy2 = cy + p2[1] * scale2;
             let edgeZ = (p1[2] + p2[2]) * 0.5;
-            DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, edgeZ, 5.5 + pulse * 1.8, false);
+            DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, edgeZ, 7.5 + pulse * 2.2, false);
             i++;
         }
         localFrame++;
@@ -899,16 +924,12 @@ task TGeometryWave(vBase, eBase, color, phase, baseR, moveType) {
             let wy = p[1] + by;
             let wz = p[2] + bz;
             let shot = vertexShots[i];
-            if (is_safe_depth(wz)) {
-                ObjMove_SetPosition(shot, originX + wx, originY + wy);
-                ObjRender_SetScaleXYZ(shot, 1.6, 1.6, 1);
-                if (wz > 0) {
-                    ObjRender_SetAlpha(shot, 70);
-                } else {
-                    ObjRender_SetAlpha(shot, 230);
-                }
+            ObjMove_SetPosition(shot, originX + wx, originY + wy);
+            ObjRender_SetScaleXYZ(shot, 1.6, 1.6, 1);
+            if (wz > 0) {
+                ObjRender_SetAlpha(shot, 70);
             } else {
-                ObjRender_SetAlpha(shot, 0);
+                ObjRender_SetAlpha(shot, 230);
             }
             i++;
         }
@@ -930,7 +951,7 @@ task TGeometryWave(vBase, eBase, color, phase, baseR, moveType) {
             let sx2 = originX + w2x;
             let sy2 = originY + w2y;
             let edgeZ = (w1z + w2z) * 0.5;
-            DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, edgeZ, 5.0, true);
+            DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, edgeZ, 7.0, true);
             i++;
         }
         yield;
@@ -952,6 +973,7 @@ task TGeometryWave(vBase, eBase, color, phase, baseR, moveType) {
 task TPattern_Generic(phase) {
     let shape = GetPhaseShape(phase);
     let color = GetPhaseColor(phase);
+    let accent = GetPhaseAccentColor(phase);
     let radius = GetPhaseRadius(phase);
     let waveRadius = GetWaveRadius(phase);
 
@@ -965,7 +987,7 @@ task TPattern_Generic(phase) {
 
         if (t > 30 && t % GetWaveInterval(phase) == 0) {
             TGeometryWave(shape[0], shape[1], color, phase, waveRadius, 0);
-            TGeometryWave(shape[0], shape[1], color, phase, waveRadius, 1);
+            TGeometryWave(shape[0], shape[1], accent, phase, waveRadius, 1);
         }
 
         t++;

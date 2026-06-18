@@ -228,14 +228,14 @@ function NeedleCol(p){
 }
 
 function PhaseName(p){
-    if(p==1){return "Phase I   Crimson Tetrahedron";}
-    if(p==2){return "Phase II  Amber Cube";}
-    if(p==3){return "Phase III Topaz Octahedron";}
-    if(p==4){return "Phase IV  Emerald Dodecahedron";}
-    if(p==5){return "Phase V   Azure Icosahedron";}
-    if(p==6){return "Phase VI  Sapphire Octa-Crystal";}
-    if(p==7){return "Phase VII Violet Double Helix";}
-    return "Phase VIII Prismatic Column Array";
+    if(p==1){return "「紅色の誓い」";}
+    if(p==2){return "「琥珀色の風車」";}
+    if(p==3){return "「黄昏のモアレ」";}
+    if(p==4){return "「翠色の花園」";}
+    if(p==5){return "「蒼穹の輪舞」";}
+    if(p==6){return "「氷晶の静寂」";}
+    if(p==7){return "「紫電の二重螺旋」";}
+    return "「全色終焉」";
 }
 
 // フェーズごとの回転の個性 [ax,ay,az,揺れ振幅,揺れ周期]
@@ -389,19 +389,6 @@ function FireNway(cx,cy,n,centerAng,spread,spd,gfx,delay){
     }
     return 0;
 }
-// 角ほど速い=四角形に広がるリング(立方体テーマ)
-function FireSquareRing(cx,cy,n,baseAng,spd,gfx,delay){
-    let i=0;
-    while(i<n){
-        let a=baseAng+i*(360/n);
-        let cc=abso(cos(a));let ss=abso(sin(a));
-        let m=cc;if(ss>m){m=ss;}
-        if(m<0.25){m=0.25;}
-        CreateShotA1(cx,cy,spd/m,a,gfx,delay);
-        i++;
-    }
-    return 0;
-}
 
 // ================================================
 // 通常弾幕補助タスク
@@ -466,95 +453,94 @@ task TLauncher(phase){
         let nC=NeedleCol(phase);let rC=RiceCol(phase);
 
         if(phase==1){
-            // 紅: 自機狙い3wayの連射 + ゆっくり回る全方位リング
-            if(t%9==0){
+            // 自機狙い3wayをゆっくり連射 + たまに広がるリング一発
+            if(t%26==0){
                 let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,3,ba,18,3.0,mB,4);
+                FireNway(cx,cy,3,ba,20,2.6,mB,5);
             }
-            if(t%66==0){
-                FireRing(cx,cy,20,spin,2.0,sB,6);
-                spin+=9;
+            if(t%90==0){
+                FireRing(cx,cy,14,spin,2.0,sB,8);
+                spin+=11;
             }
         } else if(phase==2){
-            // 琥珀: 4本腕の風車(撒き弾)+ 時々自機狙いの拡散
-            if(t%4==0){
+            // ゆっくり回る風車弾(4本)+ 時々自機狙いの拡散
+            if(t%14==0){
                 let i=0;
-                while(i<4){CreateShotA1(cx,cy,2.6,spin+i*90,mB,4);i++;}
-                spin+=13;
+                while(i<4){CreateShotA1(cx,cy,2.2,spin+i*90,mB,5);i++;}
+                spin+=10;
             }
-            if(t%84==0){
+            if(t%96==0){
                 let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,5,ba,42,3.4,sB,6);
+                FireNway(cx,cy,5,ba,40,2.8,sB,8);
             }
         } else if(phase==3){
-            // 黄玉: 逆回転する二重リング(モアレ)
-            if(t%26==0){
-                FireRing(cx,cy,18,spin,2.2,mB,6);
-                FireRing(cx,cy,18,-spin+10,2.7,sB,6);
-                spin+=7;
+            // ゆっくり広がるリングを一定間隔で(モアレは弱め)
+            if(t%50==0){
+                FireRing(cx,cy,14,spin,2.0,mB,8);
+                spin+=8;
+            }
+            if(t%50==25){
+                FireRing(cx,cy,14,-spin+10,2.2,sB,8);
             }
         } else if(phase==4){
-            // 翠: 五弁の開花(対の曲線弾が逆向きに巻く)
-            if(t%32==0){
+            // 五方向への花弁(ゆるい曲線、本数を絞る)
+            if(t%48==0){
                 let i=0;
                 while(i<5){
                     let a=spin+i*72;
-                    TCurveBullet(cx,cy,2.4,a,mB,0.8,250);
-                    TCurveBullet(cx,cy,2.4,a,sB,-0.8,250);
+                    TCurveBullet(cx,cy,2.0,a,mB,0.6,250);
                     i++;
                 }
-                spin+=18;
+                spin+=16;
             }
         } else if(phase==5){
-            // 蒼: 隙間が回転する密な全方位リング + 自機狙いの針
-            if(t%34==0){
-                let gap=t*2.3;
-                let n=26;let i=0;
+            // 隙間つきリング(密度を下げ間隔を広く)+ 自機狙いの針を疎に
+            if(t%46==0){
+                let gap=t*2.0;
+                let n=18;let i=0;
                 while(i<n){
                     let a=i*(360/n)+spin;
-                    if(angDiff(a,gap)>17){CreateShotA1(cx,cy,2.3,a,mB,6);}
+                    if(angDiff(a,gap)>22){CreateShotA1(cx,cy,2.1,a,mB,8);}
                     i++;
                 }
-                spin+=10;
+                spin+=9;
             }
-            if(t%12==0){
+            if(t%26==0){
                 let ba=GetAngleToPlayer(objBoss);
-                CreateShotA1(cx,cy,3.8,ba,nC,5);
+                CreateShotA1(cx,cy,3.2,ba,nC,6);
             }
         } else if(phase==6){
-            // 青結晶: 放射して一斉停止→向きを変えて再加速(結晶の凍結)
-            if(t%76==0){
-                let n=20;let i=0;
+            // 放射→停止→向きを変えて再加速(本数を絞る)
+            if(t%96==0){
+                let n=12;let i=0;
                 while(i<n){
                     let a=i*(360/n)+spin;
-                    TStopGoBullet(cx,cy,3.0,a,mB,28,28,a+14,3.4,220);
+                    TStopGoBullet(cx,cy,2.6,a,mB,30,30,a+18,2.8,220);
                     i++;
                 }
                 spin+=12;
             }
-            if(t%20==0){
+            if(t%36==0){
                 let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,2,ba,16,2.6,sB,5);
+                FireNway(cx,cy,2,ba,16,2.4,sB,6);
             }
         } else if(phase==7){
-            // 紫: 逆回転する二重螺旋(4条)
-            if(t%5==0){
-                CreateShotA1(cx,cy,2.6,spin,mB,4);
-                CreateShotA1(cx,cy,2.6,spin+180,mB,4);
-                CreateShotA1(cx,cy,2.6,-spin+90,sB,4);
-                CreateShotA1(cx,cy,2.6,-spin+270,sB,4);
-                spin+=13;
+            // 対の螺旋を緩やかに(2条)
+            if(t%9==0){
+                CreateShotA1(cx,cy,2.2,spin,mB,5);
+                CreateShotA1(cx,cy,2.2,spin+180,mB,5);
+                spin+=10;
             }
         } else {
-            // 白(終): 自機狙い + 逆回転リング + 三つ巴螺旋の合奏
-            if(t%6==0){
-                let i=0;while(i<3){CreateShotA1(cx,cy,2.4,spin+i*120,mB,4);i++;}
-                spin+=17;
+            // 終: 自機狙い + 広がるリング(密度は最終戦でも抑える)
+            if(t%18==0){
+                let i=0;while(i<3){CreateShotA1(cx,cy,2.2,spin+i*120,mB,5);i++;}
+                spin+=13;
             }
-            if(t%42==0){FireRing(cx,cy,24,-spin,2.0,sB,6);}
-            if(t%15==0){
+            if(t%60==0){FireRing(cx,cy,18,-spin,2.0,sB,8);}
+            if(t%24==0){
                 let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,3,ba,18,3.6,rC,5);
+                FireNway(cx,cy,3,ba,18,3.0,rC,6);
             }
         }
         t++;yield;
@@ -565,137 +551,139 @@ task TLauncher(phase){
 // 8フェーズの間奏スペル (主弾幕とは対照的な、別アイデアの古典弾幕)
 // ================================================
 
-// P1「紅針乱」: 自機狙いの針を扇状に往復させる鞭撃ち + 補助リング
+// P1: 自機狙いの針をゆるく往復させる + 合間に薄いリング
 task TSpell1(){
     let t=0;let nC=NeedleCol(1);let sB=BallS(1);
-    let sweep=-44;let dir=1;
+    let sweep=-30;let dir=1;
     while(t<360 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%3==0){
+        if(t%9==0){
             let ba=GetAngleToPlayer(objBoss);
-            CreateShotA1(cx,cy,4.4,ba+sweep,nC,5);
-            sweep+=dir*4;
-            if(sweep>44){dir=-1;}
-            if(sweep<-44){dir=1;}
+            CreateShotA1(cx,cy,3.6,ba+sweep,nC,6);
+            sweep+=dir*5;
+            if(sweep>30){dir=-1;}
+            if(sweep<-30){dir=1;}
         }
-        if(t%50==0){FireRing(cx,cy,16,t,2.0,sB,6);}
+        if(t%70==0){FireRing(cx,cy,12,t,1.8,sB,8);}
         t++;yield;
     }
 }
 
-// P2「方陣」: 四角く広がるリングを左右逆回転で重ねる(立方体)
+// P2: ゆっくり広がるリングを一定間隔で(派手な四角リングは廃止)
 task TSpell2(){
     let t=0;let mB=BallM(2);let sB=BallS(2);
     let rot=0;
     while(t<360 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%44==0){FireSquareRing(cx,cy,28,rot,1.7,mB,8);rot+=15;}
-        if(t%44==22){FireSquareRing(cx,cy,28,-rot+22,2.1,sB,8);}
+        if(t%60==0){FireRing(cx,cy,14,rot,2.0,mB,8);rot+=14;}
+        if(t%60==30){FireRing(cx,cy,14,-rot+10,2.0,sB,8);}
         t++;yield;
     }
 }
 
-// P3「六芒」: 逆回転する2つの三角(六芒星)を撒き続ける
+// P3: 三方向の弾を回しながら撒く(六芒星の片側だけ・密度を下げる)
 task TSpell3(){
     let t=0;let mB=BallM(3);let sB=BallSS(3);
     let rot=0;
     while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%9==0){
-            let i=0;while(i<3){CreateShotA1(cx,cy,2.6,rot+i*120,mB,5);i++;}
-            i=0;while(i<3){CreateShotA1(cx,cy,2.6,-rot+i*120+60,sB,5);i++;}
-            rot+=6;
+        if(t%16==0){
+            let i=0;while(i<3){CreateShotA1(cx,cy,2.2,rot+i*120,mB,6);i++;}
+            rot+=8;
+        }
+        if(t%48==0){
+            let i=0;while(i<3){CreateShotA1(cx,cy,2.2,-rot+i*120+60,sB,6);i++;}
         }
         t++;yield;
     }
 }
 
-// P4「振子の庭」: ボス周囲を周回する振子弾 + 時折の自機狙い拡散
+// P4: ボス周囲を周回する振子弾(本数を絞る)+ 時折の自機狙い拡散
 task TSpell4(){
     let t=0;let mB=BallM(4);let sB=BallS(4);
     while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%30==0){
-            let i=0;while(i<8){TPendulumBullet(cx,cy,mB,40+i*7,i*45,2.6,200);i++;}
+        if(t%48==0){
+            let i=0;while(i<5){TPendulumBullet(cx,cy,mB,40+i*8,i*72,2.0,200);i++;}
         }
-        if(t%56==0){
+        if(t%70==0){
             let ba=GetAngleToPlayer(objBoss);
-            FireNway(cx,cy,5,ba,40,3.0,sB,6);
+            FireNway(cx,cy,5,ba,40,2.6,sB,8);
         }
         t++;yield;
     }
 }
 
-// P5「氷雨と十字」: 上方からの雨 + 自機基準の十字バースト
+// P5: 上方からの雨をゆるく + 自機基準の十字バースト
 task TSpell5(){
     let t=0;let mB=BallM(5);let rC=RiceCol(5);
     while(t<350 && !Obj_IsDeleted(objBoss)){
-        if(t%5==0){TWallBullet(0,rand(10,374),2.8,90,mB,210);}
-        if(t%40==0){
+        if(t%10==0){TWallBullet(0,rand(10,374),2.4,90,mB,210);}
+        if(t%50==0){
             let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
             let ba=GetAngleToPlayer(objBoss);
-            let i=0;while(i<4){CreateShotA1(cx,cy,3.0,ba+i*90,rC,5);i++;}
+            let i=0;while(i<4){CreateShotA1(cx,cy,2.6,ba+i*90,rC,6);i++;}
         }
         t++;yield;
     }
 }
 
-// P6「凍結格子」: 放射→停止→直角に折れて再加速 + 細い自機狙い
+// P6: 放射→停止→直角に折れて再加速(本数を絞り間隔を広く)+ 細い自機狙い
 task TSpell6(){
     let t=0;let mB=BallM(6);let sB=BallS(6);
     while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%66==0){
-            let n=16;let i=0;
+        if(t%90==0){
+            let n=10;let i=0;
             while(i<n){
                 let a=i*(360/n)+t;
-                TStopGoBullet(cx,cy,3.2,a,mB,26,30,a+90,3.0,220);
+                TStopGoBullet(cx,cy,2.6,a,mB,28,32,a+90,2.6,220);
                 i++;
             }
         }
-        if(t%22==0){
+        if(t%30==0){
             let ba=GetAngleToPlayer(objBoss);
-            CreateShotA1(cx,cy,2.8,ba,sB,5);
+            CreateShotA1(cx,cy,2.4,ba,sB,6);
         }
         t++;yield;
     }
 }
 
-// P7「螺旋誘導」: 起点から対の曲線弾を放ち二重螺旋を描く
+// P7: 対の曲線弾を緩やかに放ち二重螺旋を描く
 task TSpell7(){
     let t=0;let mB=BallM(7);let sB=BallS(7);
     while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%7==0){
-            let a=t*6;
-            TCurveBullet(cx,cy,2.2,a,mB,1.5,240);
-            TCurveBullet(cx,cy,2.2,a+180,sB,1.5,240);
+        if(t%14==0){
+            let a=t*5;
+            TCurveBullet(cx,cy,2.0,a,mB,1.2,240);
+            TCurveBullet(cx,cy,2.0,a+180,sB,1.2,240);
         }
         t++;yield;
     }
 }
 
-// P8「全域終焉」: 四隅 + 降雨 + 回転リング + 自機狙い米弾の総力戦
+// P8: 四隅からの狙い弾 + ゆるい降雨 + 広がるリング + 自機狙い米弾(最終戦も密度は抑える)
 task TSpell8(){
     let t=0;let mB=BallM(8);let sB=BallSS(8);let rC=RiceCol(8);
     let corners=[[10,10],[374,10],[10,438],[374,438]];
     let rot=0;
     while(t<420 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%30==0){
+        if(t%50==0){
             let i=0;
             while(i<4){
                 let cor=corners[i];
                 let ang=atan2(cy-cor[1],cx-cor[0]);
-                FireNway(cor[0],cor[1],3,ang,18,2.6,mB,6);
+                FireNway(cor[0],cor[1],3,ang,18,2.2,mB,8);
                 i++;
             }
         }
-        if(t%6==0){TWallBullet(0,rand(10,374),2.6,90,sB,200);}
-        if(t%18==0){FireRing(cx,cy,18,rot,2.2,mB,6);rot+=14;}
-        if(t%26==0){
+        if(t%12==0){TWallBullet(0,rand(10,374),2.2,90,sB,200);}
+        if(t%34==0){FireRing(cx,cy,16,rot,2.0,mB,8);rot+=12;}
+        if(t%40==0){
             let ba=GetAngleToPlayer(objBoss);
-            FireNway(cx,cy,5,ba,30,4.2,rC,5);
+            FireNway(cx,cy,5,ba,30,3.4,rC,6);
         }
         t++;yield;
     }

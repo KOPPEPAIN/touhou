@@ -1,7 +1,7 @@
 #TouhouDanmakufu[Single]
 #ScriptVersion[3]
 #Title["Chromatic Polyhedra"]
-#Text["Glow-layered 3D wireframe spell. Distinct rotation personality per phase, fully unique interludes."]
+#Text["Rotating polyhedron boss. Eight phases of classic-style danmaku, each with its own colour and rhythm."]
 
 #include "script/default_system/Default_ShotConst.txt"
 
@@ -16,7 +16,7 @@ let gAx=0; let gAy=0; let gAz=0;
 
 let CX=192;
 let CY=120;
-let PHASE_LIFE=780;
+let PHASE_LIFE=720;
 let SCREEN_W=384;
 let SCREEN_H=448;
 
@@ -27,6 +27,10 @@ function wait(f){let i=0;while(i<f){yield;i++;}}
 function abso(x){if(x<0){return -x;}return x;}
 function bit(n,b){let d=floor(n/b);return d%2;}
 function clampv(x,lo,hi){if(x<lo){return lo;}if(x>hi){return hi;}return x;}
+// 角度を0-360に正規化(負の剰余対策)
+function norm360(a){let x=a%360;if(x<0){x+=360;}return x;}
+// 2方向の角度差(0-180)
+function angDiff(a,b){let d=norm360(a-b);if(d>180){d=360-d;}return d;}
 
 function rotate3(x,y,z,ax,ay,az){
     let sx=sin(ax);let cx2=cos(ax);
@@ -47,24 +51,8 @@ function proj(z){
     return s;
 }
 
-// HSV→RGB簡易変換 (h:0-360, s,v:0-1) → [r,g,b] 0-255
-function hsv2rgb(h,s,v){
-    let c=v*s;
-    let hh=h/60.0;
-    let x=c*(1-abso(hh%2-1));
-    let m=v-c;
-    let r=0;let g=0;let b=0;
-    if(hh<1){r=c;g=x;b=0;}
-    else if(hh<2){r=x;g=c;b=0;}
-    else if(hh<3){r=0;g=c;b=x;}
-    else if(hh<4){r=0;g=x;b=c;}
-    else if(hh<5){r=x;g=0;b=c;}
-    else{r=c;g=0;b=x;}
-    return [floor((r+m)*255), floor((g+m)*255), floor((b+m)*255)];
-}
-
 // ================================================
-// 図形データ: 正多面体5種 + 結晶的構造3種
+// 図形データ: 正多面体5種 + 結晶的構造3種(ボスの見た目)
 // ================================================
 function shape_tetra(){
     let v=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]];
@@ -120,7 +108,6 @@ function shape_icosa(){
            [4,8],[4,9],[5,10],[5,11],[6,8],[6,9],[7,10],[7,11],[8,9],[10,11]];
     return [v,e];
 }
-// 結晶構造1: 八面体の集合(結晶格子の美しさ)
 function shape_crystal1(){
     let v=[];let e=[];
     let centers=[[0,0,0],[1.5,0,0],[-1.5,0,0],[0,1.5,0],[0,-1.5,0],[0,0,1.5],[0,0,-1.5]];
@@ -136,7 +123,6 @@ function shape_crystal1(){
     }
     return [v,e];
 }
-// 結晶構造2: 二重螺旋柱(DNAらしい美しさ)
 function shape_crystal2(){
     let v=[];let e=[];let N=14;let i=0;
     while(i<N){
@@ -150,13 +136,11 @@ function shape_crystal2(){
             e=e~[[(i-1)*2,i*2]];
             e=e~[[(i-1)*2+1,i*2+1]];
         }
-        // 横方向の連結(らせんの梯子)
         if(i%2==0){e=e~[[i*2,i*2+1]];}
         i++;
     }
     return [v,e];
 }
-// 結晶構造3: 八角柱の多重リング(透明感のある柱状結晶)
 function shape_crystal3(){
     let v=[];let e=[];let N=8;let layers=4;let li=0;
     while(li<layers){
@@ -190,18 +174,8 @@ function GetShape(p){
 }
 
 // ================================================
-// フェーズ色 (色相ベース。頂点ごとにグラデーション)
+// フェーズ色
 // ================================================
-function PhaseHue(p){
-    if(p==1){return 355;}    // 赤
-    if(p==2){return 28;}     // 橙
-    if(p==3){return 50;}     // 黄
-    if(p==4){return 130;}    // 緑
-    if(p==5){return 195;}    // 水
-    if(p==6){return 220;}    // 青
-    if(p==7){return 280;}    // 紫
-    return 0;                // 白(無彩色フラグ)
-}
 function BallM(p){
     if(p==1){return DS_BALL_M_RED;}
     if(p==2){return DS_BALL_M_ORANGE;}
@@ -264,40 +238,23 @@ function PhaseName(p){
     return "Phase VIII Prismatic Column Array";
 }
 
-// フェーズごとに回転の「個性」を持たせる(主軸が異なる)
-// 戻り値: [ax係数, ay係数, az係数, 揺れ振幅, 揺れ周期]
+// フェーズごとの回転の個性 [ax,ay,az,揺れ振幅,揺れ周期]
 function RotPersonality(p){
-    if(p==1){return [1.6, 0.3, 0.3, 0.0, 1.0];}      // X軸主導(縦に転がる)
-    if(p==2){return [0.3, 1.6, 0.3, 0.0, 1.0];}      // Y軸主導(横に転がる)
-    if(p==3){return [0.5, 0.5, 1.7, 0.0, 1.0];}      // Z軸主導(画面に正対して回る)
-    if(p==4){return [0.9, 0.9, 0.9, 0.4, 0.02];}     // 等速三軸+揺れ
-    if(p==5){return [1.3, -1.1, 0.4, 0.0, 1.0];}     // X/Y逆回転気味
-    if(p==6){return [0.2, 0.2, 0.2, 1.2, 0.05];}     // ほぼ静止+大きく揺れる(脈動)
-    if(p==7){return [0.0, 0.0, 2.2, 0.0, 1.0];}      // Z軸のみ(螺旋を回す)
-    return [1.0, 1.0, -1.4, 0.5, 0.04];              // 複雑混合
-}
-
-function WaveInterval(p){
-    if(p==1){return 78;}
-    if(p==2){return 72;}
-    if(p==3){return 66;}
-    if(p==4){return 74;}
-    if(p==5){return 62;}
-    if(p==6){return 64;}
-    if(p==7){return 68;}
-    return 58;
+    if(p==1){return [1.6, 0.3, 0.3, 0.0, 1.0];}
+    if(p==2){return [0.3, 1.6, 0.3, 0.0, 1.0];}
+    if(p==3){return [0.5, 0.5, 1.7, 0.0, 1.0];}
+    if(p==4){return [0.9, 0.9, 0.9, 0.4, 0.02];}
+    if(p==5){return [1.3, -1.1, 0.4, 0.0, 1.0];}
+    if(p==6){return [0.2, 0.2, 0.2, 1.2, 0.05];}
+    if(p==7){return [0.0, 0.0, 2.2, 0.0, 1.0];}
+    return [1.0, 1.0, -1.4, 0.5, 0.04];
 }
 
 // ================================================
-// オブジェクト生成
-// 【太さ制御の前提】PRIMITIVE_LINELISTには太さ制御がないため、
-// 視覚表現は太さ可変なレーザーを使う。グローは「太い外層レーザー
-// (低alpha)+細い芯レーザー(高alpha)」の2層重ねで再現する。
-// 【頂点の継ぎ目】レーザーは矩形にしか描けないため、2辺が180°以外
-// の角度で交わる頂点では延長(overlap)が足りないと扇形の隙間が残る。
-// 別オブジェクト(ノード弾)で隙間を塞ぐのではなく、各頂点に集まる
-// 辺同士の角度を求め、その角度に応じてレーザー自体の延長量を動的に
-// 増やすことで、レーザーの端と端を確実に密着させる(ミター継ぎ目)。
+// ボスの見た目: 回転するワイヤーフレーム多面体
+// 太さ可変レーザーをグロー2層(太い外層+細い芯)で重ねて辺を描画。
+// 頂点では辺同士の角度から延長量を求め、レーザー端を密着させる。
+// このレーザーは当たり判定を持たない(純粋な演出)。
 // ================================================
 function MakeGlowLaser(gfx){
     let L=ObjShot_Create(OBJ_STRAIGHT_LASER);
@@ -317,50 +274,22 @@ function MakeGlowLaser(gfx){
     ObjShot_SetDeleteFrame(L,99999);
     return L;
 }
-function MakeHitLaser(){
-    let L=ObjShot_Create(OBJ_STRAIGHT_LASER);
-    ObjShot_SetGraphic(L,DS_RICE_S_WHITE);
-    ObjShot_SetAutoDelete(L,false);
-    ObjShot_SetSpellResist(L,true);
-    ObjShot_SetIntersectionEnable(L,false);
-    ObjStLaser_SetSource(L,false);
-    ObjLaser_SetLength(L,1);
-    ObjLaser_SetRenderWidth(L,1);
-    ObjMove_SetPosition(L,CX,CY);
-    ObjMove_SetSpeed(L,0);
-    ObjMove_SetAngle(L,0);
-    ObjRender_SetAlpha(L,0);
-    ObjShot_Regist(L);
-    ObjShot_SetDeleteFrame(L,99999);
-    return L;
-}
-// 辺を太さ・当たり判定付きで描画。両端でそれぞれ異なる延長量(ov1,ov2)
-// を取れるようにし、頂点ごとに必要な延長量だけレーザー自体を伸ばす。
-function DrawEdgeGlow(L,x1,y1,x2,y2,z,W,doHit,ov1,ov2,alphaScale){
+function DrawEdgeGlow(L,x1,y1,x2,y2,z,W,ov1,ov2,alphaScale){
     let dx=x2-x1;let dy=y2-y1;
     let len=(dx*dx+dy*dy)^0.5;
     if(len<1.0||len>650||z<-380){
         ObjRender_SetAlpha(L,0);
-        ObjShot_SetIntersectionEnable(L,false);
         return;
     }
     let ux=dx/len;let uy=dy/len;
     let bx=x1-ux*ov1;let by=y1-uy*ov1;
-    let newLen=len+ov1+ov2;
     ObjMove_SetPosition(L,bx,by);
     ObjStLaser_SetAngle(L,atan2(dy,dx));
-    ObjLaser_SetLength(L,newLen);
+    ObjLaser_SetLength(L,len+ov1+ov2);
     ObjLaser_SetRenderWidth(L,W);
-    if(z<0){
-        ObjRender_SetAlpha(L,235*alphaScale);
-        ObjShot_SetIntersectionEnable(L,doHit);
-    } else {
-        ObjRender_SetAlpha(L,55*alphaScale);
-        ObjShot_SetIntersectionEnable(L,false);
-    }
+    if(z<0){ObjRender_SetAlpha(L,235*alphaScale);}
+    else{ObjRender_SetAlpha(L,55*alphaScale);}
 }
-
-// 頂点vIdxに集まる辺の、その頂点から見た向き(角度)を全て集める
 function VertexAngles(vIdx,vx,vy,edges){
     let angles=[];
     let i=0;
@@ -372,8 +301,6 @@ function VertexAngles(vIdx,vx,vy,edges){
     }
     return angles;
 }
-// 頂点に集まる辺同士の最小角度から、ミター継ぎ目に必要な延長量を求める。
-// 角度が180°(直線)に近いほど延長は小さく、鋭角になるほど大きくなる。
 function VertexOverlap(angles,W){
     let n=length(angles);
     if(n<2){return W*0.35;}
@@ -382,15 +309,12 @@ function VertexOverlap(angles,W){
     while(i<n){
         let j=i+1;
         while(j<n){
-            let d=abso(angles[i]-angles[j])%360;
-            if(d>180){d=360-d;}
+            let d=angDiff(angles[i],angles[j]);
             if(d<minPhi){minPhi=d;}
             j++;
         }
         i++;
     }
-    // 角度が小さすぎる場合のcot暴走を防ぐため下限を強めにかけ、
-    // 頂点からレーザーが飛び出しすぎないよう延長量自体も低く抑える。
     if(minPhi<40){minPhi=40;}
     let half=minPhi/2;
     let ov=(W*0.5)*(cos(half)/sin(half));
@@ -399,14 +323,7 @@ function VertexOverlap(angles,W){
     return ov;
 }
 
-// ================================================
-// メイン図形: グロー2層(太い外層+細い芯)。頂点では辺同士の角度から
-// 必要な延長量を求め、レーザー自体を伸ばして端と端を密着させる。
-// 頂点ごとの色相グラデーション + フェーズ個性回転
-// ================================================
 task TStaticShape(verts,edges,phase,baseR){
-    let hue=PhaseHue(phase);
-    let mono=(phase==8);
     let outer=[];let inner=[];
     let i=0;
     while(i<length(edges)){
@@ -418,7 +335,7 @@ task TStaticShape(verts,edges,phase,baseR){
     while(gPhase==phase && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
         let pulse=0.5+0.5*sin(lf*4);
-        let Wcore=11.0+pulse*3.0;
+        let Wcore=10.0+pulse*3.0;
         let Wglow=Wcore*2.4;
 
         let vx=[];let vy=[];let vz=[];
@@ -432,8 +349,6 @@ task TStaticShape(verts,edges,phase,baseR){
             vz=vz~[p[2]];
             i++;
         }
-
-        // 頂点ごとに辺の角度から必要な延長量を求める
         let ovOuter=[];let ovInner=[];
         i=0;
         while(i<length(verts)){
@@ -442,15 +357,12 @@ task TStaticShape(verts,edges,phase,baseR){
             ovInner=ovInner~[VertexOverlap(angs,Wcore)];
             i++;
         }
-
         i=0;
         while(i<length(edges)){
             let i1=edges[i][0];let i2=edges[i][1];
-            let x1=vx[i1];let y1=vy[i1];
-            let x2=vx[i2];let y2=vy[i2];
             let zmid=(vz[i1]+vz[i2])*0.5;
-            DrawEdgeGlow(outer[i],x1,y1,x2,y2,zmid,Wglow,false,ovOuter[i1],ovOuter[i2],0.4);
-            DrawEdgeGlow(inner[i],x1,y1,x2,y2,zmid,Wcore,false,ovInner[i1],ovInner[i2],1.0);
+            DrawEdgeGlow(outer[i],vx[i1],vy[i1],vx[i2],vy[i2],zmid,Wglow,ovOuter[i1],ovOuter[i2],0.4);
+            DrawEdgeGlow(inner[i],vx[i1],vy[i1],vx[i2],vy[i2],zmid,Wcore,ovInner[i1],ovInner[i2],1.0);
             i++;
         }
         lf++;yield;
@@ -460,194 +372,40 @@ task TStaticShape(verts,edges,phase,baseR){
 }
 
 // ================================================
-// 発射小図形: グロー2層。styleごとに移動経路・回転軸・伸縮の挙動を
-// 本質的に変える。頂点の継ぎ目はTStaticShapeと同様、辺の角度から
-// 必要な延長量を求めてレーザー自体を伸ばして塞ぐ。
-//   style=1 直線+全軸均等回転
-//   style=2 弧を描く(進行方向が連続的に曲がる)+主にZ軸回転。
-//           曲がりながらも徐々に加速し外側へ螺旋状に広がるため、
-//           その場で円を描いて居座ることなく必ず画面外へ抜ける。
-//   style=3 螺旋(直進しつつ進行方向に垂直な振動)+X軸主体回転
-//   style=4 加速しながら拡大+Y軸主体回転
-//   style=5 ジグザグ(一定周期で進行方向が折れる)+回転方向反転
-//   style=6 脈動(速度と図形サイズが波打つ)+ゆっくり全軸回転
+// 発射ヘルパ(即時発射の関数)
 // ================================================
-task TWaveShape(verts,edges,phase,baseR,dirAngle,style,spd){
-    let outer=[];let inner=[];
-    let HL=[];let i=0;
-    while(i<length(edges)){
-        outer=outer~[MakeGlowLaser(BallSS(phase))];
-        inner=inner~[MakeGlowLaser(BallSS(phase))];
-        HL=HL~[MakeHitLaser()];
+function FireRing(cx,cy,n,baseAng,spd,gfx,delay){
+    let i=0;
+    while(i<n){CreateShotA1(cx,cy,spd,baseAng+i*(360/n),gfx,delay);i++;}
+    return 0;
+}
+function FireNway(cx,cy,n,centerAng,spread,spd,gfx,delay){
+    let i=0;
+    while(i<n){
+        let a=centerAng;
+        if(n>1){a=centerAng-spread/2+i*(spread/(n-1));}
+        CreateShotA1(cx,cy,spd,a,gfx,delay);
         i++;
     }
-
-    let ox=ObjMove_GetX(objBoss);let oy=ObjMove_GetY(objBoss);
-    let lax=rand(0,360);let lay=rand(0,360);let laz=rand(0,360);
-
-    let cx=ox;let cy=oy;
-    let curSpd=spd;
-    let scaleMul=1.0;
-    let heading=dirAngle;     // 現在の進行方向(style次第で変化)
-    let zigDir=1;
-    let margin=50;
-    // 弧(style=2)は画面中央付近を周回し続けて画面外判定に掛からない
-    // ことがあるため、保険のhardLimitも短くしておく。
-    let hardLimit=240;
-    let t=0;
-    let alive=true;
-    while(alive){
-        if(Obj_IsDeleted(objBoss)||t>hardLimit){alive=false;}
-        else{
-            // ---- 移動と回転をstyleごとに本質的に変える ----
-            let rax=0;let ray=0;let raz=0;
-            if(style==1){
-                // 直線 + 全軸均等回転
-                cx+=curSpd*cos(heading);cy+=curSpd*sin(heading);
-                rax=4.0;ray=3.2;raz=2.6;
-            } else if(style==2){
-                // 弧: 進行方向を毎フレーム少しずつ曲げる + Z軸主体回転。
-                // 速度も徐々に増すことで旋回半径が時間とともに拡大し、
-                // 同じ場所を回り続ける(=画面内に居座る)ことを防ぐ。
-                heading+=1.5;
-                curSpd+=0.035;
-                cx+=curSpd*cos(heading);cy+=curSpd*sin(heading);
-                rax=0.5;ray=0.5;raz=6.5;
-            } else if(style==3){
-                // 螺旋: 直進方向に対し垂直に正弦振動 + X軸主体回転
-                let perp=dirAngle+90;
-                let osc=sin(t*9)*1.4;
-                cx+=curSpd*cos(dirAngle)+osc*cos(perp);
-                cy+=curSpd*sin(dirAngle)+osc*sin(perp);
-                rax=7.0;ray=1.5;raz=1.0;
-            } else if(style==4){
-                // 加速 + 拡大 + Y軸主体回転
-                curSpd+=0.045;
-                cx+=curSpd*cos(heading);cy+=curSpd*sin(heading);
-                scaleMul=1.0+t*0.013;
-                rax=1.2;ray=7.0;raz=1.2;
-            } else if(style==5){
-                // ジグザグ: 一定周期で進行方向が左右に折れる + 回転方向が反転
-                if(t%18==0){zigDir=-zigDir;heading=dirAngle+zigDir*38;}
-                cx+=curSpd*cos(heading);cy+=curSpd*sin(heading);
-                rax=4.5*zigDir;ray=3.0*zigDir;raz=2.0;
-            } else {
-                // 脈動: 速度も図形サイズも波打つ + ゆっくり全軸回転
-                let sp=curSpd*(0.55+0.6*sin(t*5));
-                cx+=sp*cos(heading);cy+=sp*sin(heading);
-                scaleMul=1.0+0.45*sin(t*5);
-                rax=2.2;ray=1.8;raz=1.5;
-            }
-            lax+=rax;lay+=ray;laz+=raz;
-
-            if(cx<-margin||cx>SCREEN_W+margin||cy<-margin||cy>SCREEN_H+margin){alive=false;}
-            else{
-                let pulse=0.5+0.5*sin(t*6);
-                let Wcore=3.2+pulse*1.2;
-                let Wglow=Wcore*2.2;
-                let R=baseR*scaleMul;
-
-                let vx=[];let vy=[];
-                i=0;
-                while(i<length(verts)){
-                    let v=verts[i];
-                    let p=rotate3(v[0]*R,v[1]*R,v[2]*R,lax,lay,laz);
-                    vx=vx~[cx+p[0]];
-                    vy=vy~[cy+p[1]];
-                    i++;
-                }
-
-                let ovOuter=[];let ovInner=[];
-                i=0;
-                while(i<length(verts)){
-                    let angs=VertexAngles(i,vx,vy,edges);
-                    ovOuter=ovOuter~[VertexOverlap(angs,Wglow)];
-                    ovInner=ovInner~[VertexOverlap(angs,Wcore)];
-                    i++;
-                }
-
-                i=0;
-                while(i<length(edges)){
-                    let i1=edges[i][0];let i2=edges[i][1];
-                    let x1=vx[i1];let y1=vy[i1];
-                    let x2=vx[i2];let y2=vy[i2];
-                    DrawEdgeGlow(outer[i],x1,y1,x2,y2,-10,Wglow,false,ovOuter[i1],ovOuter[i2],0.4);
-                    DrawEdgeGlow(inner[i],x1,y1,x2,y2,-10,Wcore,false,ovInner[i1],ovInner[i2],1.0);
-                    let dx=x2-x1;let dy=y2-y1;
-                    let len=(dx*dx+dy*dy)^0.5;
-                    if(len>=1.0&&len<200){
-                        ObjMove_SetPosition(HL[i],x1,y1);
-                        ObjStLaser_SetAngle(HL[i],atan2(dy,dx));
-                        ObjLaser_SetLength(HL[i],len);
-                        ObjLaser_SetRenderWidth(HL[i],Wcore+2);
-                        ObjShot_SetIntersectionEnable(HL[i],true);
-                    } else {
-                        ObjShot_SetIntersectionEnable(HL[i],false);
-                    }
-                    i++;
-                }
-                t++;yield;
-            }
-        }
-    }
-    i=0;while(i<length(outer)){Obj_Delete(outer[i]);i++;}
-    i=0;while(i<length(inner)){Obj_Delete(inner[i]);i++;}
-    i=0;while(i<length(HL)){Obj_Delete(HL[i]);i++;}
+    return 0;
 }
-
-// ================================================
-// フェーズごとの発射方法 (完全に固有の挙動・配置)
-// ================================================
-task TLauncher(phase,verts,edges){
-    let R=14;
-    let t=0;
-    let wv=WaveInterval(phase);
-    let subc=0;
-    while(gPhase==phase && !Obj_IsDeleted(objBoss)){
-        if(t%wv==0){
-            if(phase==1){
-                // 直線で自機方向3way
-                let ba=GetAngleToPlayer(objBoss);
-                TWaveShape(verts,edges,phase,R,ba,1,2.0);
-                TWaveShape(verts,edges,phase,R,ba+16,1,2.0);
-                TWaveShape(verts,edges,phase,R,ba-16,1,2.0);
-            } else if(phase==2){
-                // 4方向に弧を描いて広がる
-                let i=0;while(i<4){TWaveShape(verts,edges,phase,R,i*90+subc*15,2,2.2);i++;}subc++;
-            } else if(phase==3){
-                // 6方向に螺旋
-                let i=0;while(i<6){TWaveShape(verts,edges,phase,R,i*60+subc*10,3,2.0);i++;}subc++;
-            } else if(phase==4){
-                // ランダム方向に加速拡大
-                let i=0;while(i<3){TWaveShape(verts,edges,phase,R,rand(0,360),4,1.5);i++;}
-            } else if(phase==5){
-                // 8方向にジグザグ
-                let i=0;while(i<8){TWaveShape(verts,edges,phase,R,i*45+subc*8,5,2.2);i++;}subc++;
-            } else if(phase==6){
-                // 自機方向に脈動しつつ、左右は弧
-                let ba=GetAngleToPlayer(objBoss);
-                TWaveShape(verts,edges,phase,R,ba,6,2.0);
-                TWaveShape(verts,edges,phase,R,ba+30,2,2.0);
-                TWaveShape(verts,edges,phase,R,ba-30,2,2.0);
-            } else if(phase==7){
-                // 5方向に螺旋(星型対応)
-                let i=0;while(i<5){TWaveShape(verts,edges,phase,R,i*72+subc*12,3,2.0);i++;}subc++;
-            } else {
-                // 全スタイル混在の乱舞
-                let s=(subc%5)+1;
-                let i=0;while(i<6){TWaveShape(verts,edges,phase,R,i*60+subc*9,s,2.2);i++;}
-                TWaveShape(verts,edges,phase,R,GetAngleToPlayer(objBoss),1,2.4);subc++;
-            }
-        }
-        t++;yield;
+// 角ほど速い=四角形に広がるリング(立方体テーマ)
+function FireSquareRing(cx,cy,n,baseAng,spd,gfx,delay){
+    let i=0;
+    while(i<n){
+        let a=baseAng+i*(360/n);
+        let cc=abso(cos(a));let ss=abso(sin(a));
+        let m=cc;if(ss>m){m=ss;}
+        if(m<0.25){m=0.25;}
+        CreateShotA1(cx,cy,spd/m,a,gfx,delay);
+        i++;
     }
+    return 0;
 }
 
 // ================================================
 // 通常弾幕補助タスク
-// 【重要】speed=0や画面内に留まる弾(振子・停止など)は画面外判定による
-// 自動削除が効かないため、life経過時に必ずObj_Deleteで明示的に削除する。
-// これを行わないと弾が画面内に永久に残ってしまう。
+// 画面内に留まる弾(振子・停止・曲線)は経過後にObj_Deleteで明示削除する。
 // ================================================
 task TAccelBullet(x,y,spd,ang,gfx,accel,maxsp,life){
     let o=CreateShotA1(x,y,spd,ang,gfx,6);
@@ -674,241 +432,270 @@ task TStopGoBullet(x,y,spd,ang,gfx,stopAt,waitT,newAng,newSpd,life){
     while(!Obj_IsDeleted(o)&&u<life){u++;yield;}
     if(!Obj_IsDeleted(o)){Obj_Delete(o);}
 }
-// 軌跡上を移動する弾(2点間を往復)
 task TPendulumBullet(x,y,gfx,radius,baseAngle,angSpeed,life){
     let o=CreateShotA1(x,y,0,0,gfx,6);
     ObjMove_SetSpeed(o,0);
     let a=baseAngle;let t=0;
     while(!Obj_IsDeleted(o)&&t<life){
         a+=angSpeed;
-        let nx=x+cos(a)*radius;let ny=y+sin(a)*radius;
-        ObjMove_SetPosition(o,nx,ny);
+        ObjMove_SetPosition(o,x+cos(a)*radius,y+sin(a)*radius);
         t++;yield;
     }
     if(!Obj_IsDeleted(o)){Obj_Delete(o);}
 }
-// 壁から生成される弾(画面端から出現)
 task TWallBullet(side,pos,spd,ang,gfx,life){
     let x=0;let y=0;
-    if(side==0){x=pos;y=-10;}          // 上
-    else if(side==1){x=SCREEN_W+10;y=pos;}  // 右
-    else if(side==2){x=pos;y=SCREEN_H+10;}  // 下
-    else{x=-10;y=pos;}                 // 左
+    if(side==0){x=pos;y=-10;}
+    else if(side==1){x=SCREEN_W+10;y=pos;}
+    else if(side==2){x=pos;y=SCREEN_H+10;}
+    else{x=-10;y=pos;}
     let o=CreateShotA1(x,y,spd,ang,gfx,6);
     let t=0;while(!Obj_IsDeleted(o)&&t<life){t++;yield;}
     if(!Obj_IsDeleted(o)){Obj_Delete(o);}
 }
 
 // ================================================
-// 8フェーズ完全固有の通常弾幕 (各フェーズの図形イメージから着想を一新)
+// フェーズ主弾幕 (図形が表示されている間。古典的な弾幕に作り直し)
+// ================================================
+task TLauncher(phase){
+    let t=0;
+    let spin=0;
+    while(gPhase==phase && !Obj_IsDeleted(objBoss)){
+        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
+        let mB=BallM(phase);let sB=BallS(phase);
+        let nC=NeedleCol(phase);let rC=RiceCol(phase);
+
+        if(phase==1){
+            // 紅: 自機狙い3wayの連射 + ゆっくり回る全方位リング
+            if(t%9==0){
+                let ba=GetAngleToPlayer(objBoss);
+                FireNway(cx,cy,3,ba,18,3.0,mB,4);
+            }
+            if(t%66==0){
+                FireRing(cx,cy,20,spin,2.0,sB,6);
+                spin+=9;
+            }
+        } else if(phase==2){
+            // 琥珀: 4本腕の風車(撒き弾)+ 時々自機狙いの拡散
+            if(t%4==0){
+                let i=0;
+                while(i<4){CreateShotA1(cx,cy,2.6,spin+i*90,mB,4);i++;}
+                spin+=13;
+            }
+            if(t%84==0){
+                let ba=GetAngleToPlayer(objBoss);
+                FireNway(cx,cy,5,ba,42,3.4,sB,6);
+            }
+        } else if(phase==3){
+            // 黄玉: 逆回転する二重リング(モアレ)
+            if(t%26==0){
+                FireRing(cx,cy,18,spin,2.2,mB,6);
+                FireRing(cx,cy,18,-spin+10,2.7,sB,6);
+                spin+=7;
+            }
+        } else if(phase==4){
+            // 翠: 五弁の開花(対の曲線弾が逆向きに巻く)
+            if(t%32==0){
+                let i=0;
+                while(i<5){
+                    let a=spin+i*72;
+                    TCurveBullet(cx,cy,2.4,a,mB,0.8,250);
+                    TCurveBullet(cx,cy,2.4,a,sB,-0.8,250);
+                    i++;
+                }
+                spin+=18;
+            }
+        } else if(phase==5){
+            // 蒼: 隙間が回転する密な全方位リング + 自機狙いの針
+            if(t%34==0){
+                let gap=t*2.3;
+                let n=26;let i=0;
+                while(i<n){
+                    let a=i*(360/n)+spin;
+                    if(angDiff(a,gap)>17){CreateShotA1(cx,cy,2.3,a,mB,6);}
+                    i++;
+                }
+                spin+=10;
+            }
+            if(t%12==0){
+                let ba=GetAngleToPlayer(objBoss);
+                CreateShotA1(cx,cy,3.8,ba,nC,5);
+            }
+        } else if(phase==6){
+            // 青結晶: 放射して一斉停止→向きを変えて再加速(結晶の凍結)
+            if(t%76==0){
+                let n=20;let i=0;
+                while(i<n){
+                    let a=i*(360/n)+spin;
+                    TStopGoBullet(cx,cy,3.0,a,mB,28,28,a+14,3.4,220);
+                    i++;
+                }
+                spin+=12;
+            }
+            if(t%20==0){
+                let ba=GetAngleToPlayer(objBoss);
+                FireNway(cx,cy,2,ba,16,2.6,sB,5);
+            }
+        } else if(phase==7){
+            // 紫: 逆回転する二重螺旋(4条)
+            if(t%5==0){
+                CreateShotA1(cx,cy,2.6,spin,mB,4);
+                CreateShotA1(cx,cy,2.6,spin+180,mB,4);
+                CreateShotA1(cx,cy,2.6,-spin+90,sB,4);
+                CreateShotA1(cx,cy,2.6,-spin+270,sB,4);
+                spin+=13;
+            }
+        } else {
+            // 白(終): 自機狙い + 逆回転リング + 三つ巴螺旋の合奏
+            if(t%6==0){
+                let i=0;while(i<3){CreateShotA1(cx,cy,2.4,spin+i*120,mB,4);i++;}
+                spin+=17;
+            }
+            if(t%42==0){FireRing(cx,cy,24,-spin,2.0,sB,6);}
+            if(t%15==0){
+                let ba=GetAngleToPlayer(objBoss);
+                FireNway(cx,cy,3,ba,18,3.6,rC,5);
+            }
+        }
+        t++;yield;
+    }
+}
+
+// ================================================
+// 8フェーズの間奏スペル (主弾幕とは対照的な、別アイデアの古典弾幕)
 // ================================================
 
-// P1「三方の刃」: 四面体の鋭さをそのまま弾幕に。回転する三角の刃が
-// 3枚、開きながら広がっていく合間に自機を貫く針弾を撃ち込む。
+// P1「紅針乱」: 自機狙いの針を扇状に往復させる鞭撃ち + 補助リング
 task TSpell1(){
-    let t=0;let cM=BallM(1);let nC=NeedleCol(1);
-    let rot=0;
-    while(t<320 && !Obj_IsDeleted(objBoss)){
+    let t=0;let nC=NeedleCol(1);let sB=BallS(1);
+    let sweep=-44;let dir=1;
+    while(t<360 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%5==0){
+        if(t%3==0){
             let ba=GetAngleToPlayer(objBoss);
-            CreateShotA1(cx,cy,4.8,ba+rand(-3,3),nC,5);
+            CreateShotA1(cx,cy,4.4,ba+sweep,nC,5);
+            sweep+=dir*4;
+            if(sweep>44){dir=-1;}
+            if(sweep<-44){dir=1;}
         }
-        if(t%34==0){
-            let blade=0;
-            while(blade<3){
-                let baseA=rot+blade*120;
-                let k=-1;
-                while(k<=1){
-                    TCurveBullet(cx,cy,2.6,baseA+k*13,cM,k*0.35,230);
-                    k++;
-                }
-                blade++;
-            }
-            rot+=41;
-        }
+        if(t%50==0){FireRing(cx,cy,16,t,2.0,sB,6);}
         t++;yield;
     }
 }
 
-// P2「格子の檻」: 立方体の辺を思わせる縦横の弾幕ラインが画面を
-// ゆっくり流れて格子状に重なり、中心からは対角線状の弾が走る。
+// P2「方陣」: 四角く広がるリングを左右逆回転で重ねる(立方体)
 task TSpell2(){
-    let t=0;let cM=BallM(2);let cS=BallS(2);
-    let shiftX=0;let shiftY=0;
-    while(t<320 && !Obj_IsDeleted(objBoss)){
-        if(t%10==0){
-            let col=0;
-            while(col<6){
-                let x=((col*64+shiftX)%448)-32;
-                TWallBullet(0,x,2.0,90,cM,210);
-                col++;
-            }
-            shiftX+=8;
-        }
-        if(t%14==0){
-            let row=0;
-            while(row<5){
-                let y=((row*96+shiftY)%512)-32;
-                TWallBullet(3,y,2.0,0,cS,210);
-                row++;
-            }
-            shiftY+=10;
-        }
-        if(t%48==0){
-            let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-            let i=0;while(i<4){CreateShotA1(cx,cy,3.6,45+i*90,cM,6);i++;}
-        }
+    let t=0;let mB=BallM(2);let sB=BallS(2);
+    let rot=0;
+    while(t<360 && !Obj_IsDeleted(objBoss)){
+        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
+        if(t%44==0){FireSquareRing(cx,cy,28,rot,1.7,mB,8);rot+=15;}
+        if(t%44==22){FireSquareRing(cx,cy,28,-rot+22,2.1,sB,8);}
         t++;yield;
     }
 }
 
-// P3「八面の脈動」: 八面体の断面=菱形が、加速・減速を繰り返して
-// 鼓動するように4方向へ広がる。合間に自機狙いの細粒弾を挟む。
+// P3「六芒」: 逆回転する2つの三角(六芒星)を撒き続ける
 task TSpell3(){
-    let t=0;let cM=BallM(3);let cS=BallSS(3);
-    let phaseDir=1;
-    while(t<330 && !Obj_IsDeleted(objBoss)){
+    let t=0;let mB=BallM(3);let sB=BallSS(3);
+    let rot=0;
+    while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%26==0){
-            let base=t*3;let i=0;
-            while(i<4){
-                let a=base+i*90;
-                TAccelBullet(cx,cy,1.0,a,cM,0.05*phaseDir,4.0,200);
-                TAccelBullet(cx,cy,1.0,a+45,cS,0.05*phaseDir,2.5,200);
-                i++;
-            }
-            phaseDir=-phaseDir;
-        }
         if(t%9==0){
-            let ba=GetAngleToPlayer(objBoss);
-            CreateShotA1(cx,cy,3.4,ba,cS,5);
+            let i=0;while(i<3){CreateShotA1(cx,cy,2.6,rot+i*120,mB,5);i++;}
+            i=0;while(i<3){CreateShotA1(cx,cy,2.6,-rot+i*120+60,sB,5);i++;}
+            rot+=6;
         }
         t++;yield;
     }
 }
 
-// P4「五弁の蔓」: 十二面体の五角形面を花弁になぞらえ、対をなす
-// 弾が逆方向に巻きながら5方向へ開花する。周囲には蔓のような
-// 周回弾を添える。
+// P4「振子の庭」: ボス周囲を周回する振子弾 + 時折の自機狙い拡散
 task TSpell4(){
-    let t=0;let cM=BallM(4);let cS=BallS(4);
-    let bloom=0;
-    while(t<340 && !Obj_IsDeleted(objBoss)){
+    let t=0;let mB=BallM(4);let sB=BallS(4);
+    while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%44==0){
-            let i=0;
-            while(i<5){
-                let a=i*72+bloom;
-                TCurveBullet(cx,cy,1.8,a,cM,0.55,230);
-                TCurveBullet(cx,cy,1.8,a,cS,-0.55,230);
-                i++;
-            }
-            bloom+=14;
+        if(t%30==0){
+            let i=0;while(i<8){TPendulumBullet(cx,cy,mB,40+i*7,i*45,2.6,200);i++;}
         }
-        if(t%70==0){
-            let i=0;
-            while(i<5){TPendulumBullet(cx,cy,cS,46+i*6,i*72,2.4,180);i++;}
+        if(t%56==0){
+            let ba=GetAngleToPlayer(objBoss);
+            FireNway(cx,cy,5,ba,40,3.0,sB,6);
         }
         t++;yield;
     }
 }
 
-// P5「多面体の雨」: 二十面体の三角面をイメージした3粒組の弾が
-// 画面上部の無作為な位置から面のように降り注ぎ、合間に自機狙いの
-// 米弾を撃つ。
+// P5「氷雨と十字」: 上方からの雨 + 自機基準の十字バースト
 task TSpell5(){
-    let t=0;let cM=BallM(5);let cR=RiceCol(5);
-    while(t<340 && !Obj_IsDeleted(objBoss)){
-        if(t%18==0){
-            let bx=rand(20,360);let by=-14;
-            let baseA=86+rand(-6,6);
-            let k=-1;
-            while(k<=1){
-                CreateShotA1(bx+k*10,by,2.4,baseA,cM,6);
-                k++;
-            }
-        }
-        if(t%32==0){
+    let t=0;let mB=BallM(5);let rC=RiceCol(5);
+    while(t<350 && !Obj_IsDeleted(objBoss)){
+        if(t%5==0){TWallBullet(0,rand(10,374),2.8,90,mB,210);}
+        if(t%40==0){
             let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
             let ba=GetAngleToPlayer(objBoss);
-            let i=0;while(i<5){CreateShotA1(cx,cy,3.6,ba+(i-2)*9,cR,5);i++;}
+            let i=0;while(i<4){CreateShotA1(cx,cy,3.0,ba+i*90,rC,5);i++;}
         }
         t++;yield;
     }
 }
 
-// P6「結晶格子の点滅」: 結晶構造1の6方向の腕に対応する位置に
-// 弾が一斉に現れて静止し、束の間の停止のあと外側へ弾けて飛ぶ。
+// P6「凍結格子」: 放射→停止→直角に折れて再加速 + 細い自機狙い
 task TSpell6(){
-    let t=0;let cM=BallM(6);let cS=BallS(6);
-    let offsets=[[0,-46],[46,0],[0,46],[-46,0],[28,-28],[-28,28]];
-    while(t<340 && !Obj_IsDeleted(objBoss)){
+    let t=0;let mB=BallM(6);let sB=BallS(6);
+    while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%58==0){
-            let i=0;
-            while(i<6){
-                let off=offsets[i];
-                let px=cx+off[0];let py=cy+off[1];
-                let outA=atan2(off[1],off[0]);
-                TStopGoBullet(px,py,0,0,cM,1,30,outA,3.4,200);
+        if(t%66==0){
+            let n=16;let i=0;
+            while(i<n){
+                let a=i*(360/n)+t;
+                TStopGoBullet(cx,cy,3.2,a,mB,26,30,a+90,3.0,220);
                 i++;
             }
         }
-        if(t%19==0){
-            let ba=GetAngleToPlayer(objBoss)+t;
-            CreateShotA1(cx,cy,2.6,ba,cS,5);
+        if(t%22==0){
+            let ba=GetAngleToPlayer(objBoss);
+            CreateShotA1(cx,cy,2.8,ba,sB,5);
         }
         t++;yield;
     }
 }
 
-// P7「二重螺旋」: 同じ起点から180°反対側に放たれた二条の弾が
-// 同じ向きに巻きながら伸びていき、本物のDNAのような対の螺旋を描く。
+// P7「螺旋誘導」: 起点から対の曲線弾を放ち二重螺旋を描く
 task TSpell7(){
-    let t=0;let cM=BallM(7);let cS=BallS(7);
-    while(t<340 && !Obj_IsDeleted(objBoss)){
+    let t=0;let mB=BallM(7);let sB=BallS(7);
+    while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%9==0){
-            let a=t*5;
-            TCurveBullet(cx,cy,2.0,a,cM,1.4,230);
-            TCurveBullet(cx,cy,2.0,a+180,cM,1.4,230);
-        }
-        if(t%41==0){
-            let i=0;while(i<6){TCurveBullet(cx,cy,1.5,i*60,cS,-0.7,230);i++;}
+        if(t%7==0){
+            let a=t*6;
+            TCurveBullet(cx,cy,2.2,a,mB,1.5,240);
+            TCurveBullet(cx,cy,2.2,a+180,sB,1.5,240);
         }
         t++;yield;
     }
 }
 
-// P8「柱状結晶の終焉」: これまでの全フェーズの要素(隅からの対角弾・
-// 降り注ぐ柱・放射状の閃光・自機狙いの針)を一つの最終弾幕に統合する。
+// P8「全域終焉」: 四隅 + 降雨 + 回転リング + 自機狙い米弾の総力戦
 task TSpell8(){
-    let t=0;let cM=BallM(8);let cS=BallSS(8);let cR=RiceCol(8);
+    let t=0;let mB=BallM(8);let sB=BallSS(8);let rC=RiceCol(8);
     let corners=[[10,10],[374,10],[10,438],[374,438]];
-    while(t<400 && !Obj_IsDeleted(objBoss)){
+    let rot=0;
+    while(t<420 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%26==0){
+        if(t%30==0){
             let i=0;
             while(i<4){
                 let cor=corners[i];
                 let ang=atan2(cy-cor[1],cx-cor[0]);
-                CreateShotA1(cor[0],cor[1],2.6,ang,cM,6);
-                CreateShotA1(cor[0],cor[1],2.6,ang+90,cS,6);
+                FireNway(cor[0],cor[1],3,ang,18,2.6,mB,6);
                 i++;
             }
         }
-        if(t%7==0){
-            let x=192+sin(t*4)*150;
-            TWallBullet(0,x,2.8,90,cS,200);
-        }
-        if(t%22==0){
-            let n=12;let i=0;
-            while(i<n){CreateShotA1(cx,cy,2.2,i*30+t*2,cM,5);i++;}
-        }
-        if(t%30==0){
-            let ba=GetAngleToPlayer(objBoss);let i=0;
-            while(i<5){CreateShotA1(cx,cy,4.4,ba+(i-2)*7,cR,5);i++;}
+        if(t%6==0){TWallBullet(0,rand(10,374),2.6,90,sB,200);}
+        if(t%18==0){FireRing(cx,cy,18,rot,2.2,mB,6);rot+=14;}
+        if(t%26==0){
+            let ba=GetAngleToPlayer(objBoss);
+            FireNway(cx,cy,5,ba,30,4.2,rC,5);
         }
         t++;yield;
     }
@@ -926,7 +713,7 @@ function RunInterludeSpell(phase){
 }
 
 // ================================================
-// フェーズメインループ (フェーズ個性回転を反映)
+// フェーズメインループ (図形の回転を反映)
 // ================================================
 task TPhaseLoop(phase){
     let sh=GetShape(phase);
@@ -934,7 +721,7 @@ task TPhaseLoop(phase){
     let pers=RotPersonality(phase);
 
     TStaticShape(verts,edges,phase,80);
-    TLauncher(phase,verts,edges);
+    TLauncher(phase);
 
     let t=0;
     while(gPhase==phase && !Obj_IsDeleted(objBoss)){
@@ -951,7 +738,7 @@ function ClearAndInterlude(phase){
     ObjMove_SetDestAtFrame(objBoss,CX,CY,50);
     wait(54);
     RunInterludeSpell(phase);
-    wait(370);
+    wait(360);
     DeleteShotAll(TYPE_SHOT,TYPE_ITEM);
     wait(40);
 }
@@ -1004,7 +791,6 @@ task TMain(){
 function RunPhase(phase){
     if(Obj_IsDeleted(objBoss)){return;}
     gPhase=phase;
-    let pers=RotPersonality(phase);
     gAx=phase*19;gAy=phase*31;gAz=phase*43;
     TAnnounce(PhaseName(phase));
     TPhaseLoop(phase);

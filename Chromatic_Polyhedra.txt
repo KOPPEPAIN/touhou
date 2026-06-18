@@ -389,6 +389,38 @@ function FireNway(cx,cy,n,centerAng,spread,spd,gfx,delay){
     }
     return 0;
 }
+// 崩れ: dec(0で整然→大きいほど乱れる)に応じて角度と速度を歪ませて撒く
+function FireRingDecay(cx,cy,n,baseAng,spd,gfx,delay,dec){
+    let i=0;
+    while(i<n){
+        let a=baseAng+i*(360/n);
+        a+=sin(i*47+dec*40)*dec*16;
+        let s=spd*(1.0+sin(i*23+dec*70)*dec*0.45);
+        if(s<0.6){s=0.6;}
+        CreateShotA1(cx,cy,s,a,gfx,delay);
+        i++;
+    }
+    return 0;
+}
+function FireNwayDecay(cx,cy,n,centerAng,spread,spd,gfx,delay,dec){
+    let i=0;
+    while(i<n){
+        let a=centerAng;
+        if(n>1){a=centerAng-spread/2+i*(spread/(n-1));}
+        a+=sin(i*53+dec*60)*dec*14;
+        let s=spd*(1.0+sin(i*31+dec*40)*dec*0.4);
+        if(s<0.6){s=0.6;}
+        CreateShotA1(cx,cy,s,a,gfx,delay);
+        i++;
+    }
+    return 0;
+}
+// 崩れ量の更新: ループごとに増え、上限capで頭打ち(整然→崩壊の往復はResetで)
+function DecayStep(dec,step,cap){
+    let d=dec+step;
+    if(d>cap){d=cap;}
+    return d;
+}
 
 // ================================================
 // 通常弾幕補助タスク
@@ -442,105 +474,129 @@ task TWallBullet(side,pos,spd,ang,gfx,life){
 }
 
 // ================================================
-// フェーズ主弾幕 (図形が表示されている間。古典的な弾幕に作り直し)
+// フェーズ主弾幕  テーマ「崩れ」
+// 最初は整然と並ぶ/動く弾が、ループを重ねるごとにdecが増えて崩れていく。
 // ================================================
 task TLauncher(phase){
     let t=0;
     let spin=0;
+    let dec=0;   // 崩れ量(0=整然)
     while(gPhase==phase && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
         let mB=BallM(phase);let sB=BallS(phase);
         let nC=NeedleCol(phase);let rC=RiceCol(phase);
 
         if(phase==1){
-            // 自機狙い3wayをゆっくり連射 + たまに広がるリング一発
+            // 整然と並ぶ全方位リングが、撒くたびに角度と速度を乱して崩れる
+            if(t%50==0){
+                FireRingDecay(cx,cy,16,spin,2.0,mB,8,dec);
+                spin+=9;
+                dec=DecayStep(dec,0.16,1.0);
+            }
             if(t%26==0){
                 let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,3,ba,20,2.6,mB,5);
-            }
-            if(t%90==0){
-                FireRing(cx,cy,14,spin,2.0,sB,8);
-                spin+=11;
+                FireNway(cx,cy,3,ba,20,2.6,sB,5);
             }
         } else if(phase==2){
-            // ゆっくり回る風車弾(4本)+ 時々自機狙いの拡散
+            // 4本腕の風車。腕の角度間隔がループごとにばらけて崩れる
             if(t%14==0){
                 let i=0;
-                while(i<4){CreateShotA1(cx,cy,2.2,spin+i*90,mB,5);i++;}
+                while(i<4){
+                    let a=spin+i*90+sin(i*90+dec*60)*dec*22;
+                    CreateShotA1(cx,cy,2.2,a,mB,5);
+                    i++;
+                }
                 spin+=10;
-            }
-            if(t%96==0){
-                let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,5,ba,40,2.8,sB,8);
+                dec=DecayStep(dec,0.05,1.0);
             }
         } else if(phase==3){
-            // ゆっくり広がるリングを一定間隔で(モアレは弱め)
+            // 等速で広がる二重リング。ループごとに歪んでモアレが崩壊する
             if(t%50==0){
-                FireRing(cx,cy,14,spin,2.0,mB,8);
+                FireRingDecay(cx,cy,14,spin,2.0,mB,8,dec);
                 spin+=8;
+                dec=DecayStep(dec,0.14,1.0);
             }
             if(t%50==25){
-                FireRing(cx,cy,14,-spin+10,2.2,sB,8);
+                FireRingDecay(cx,cy,14,-spin+10,2.2,sB,8,dec);
             }
         } else if(phase==4){
-            // 五方向への花弁(ゆるい曲線、本数を絞る)
+            // 五弁の花。最初は均等な曲線、ループごとに開く角度がばらつき形が崩れる
             if(t%48==0){
                 let i=0;
                 while(i<5){
-                    let a=spin+i*72;
-                    TCurveBullet(cx,cy,2.0,a,mB,0.6,250);
+                    let a=spin+i*72+sin(i*72+dec*50)*dec*20;
+                    let turn=0.6+sin(i*40)*dec*0.4;
+                    TCurveBullet(cx,cy,2.0,a,mB,turn,250);
                     i++;
                 }
                 spin+=16;
+                dec=DecayStep(dec,0.12,1.0);
             }
         } else if(phase==5){
-            // 隙間つきリング(密度を下げ間隔を広く)+ 自機狙いの針を疎に
+            // 隙間が1つ空いた整然リング。ループごとに隙間が増殖・位置が乱れ崩れる
             if(t%46==0){
-                let gap=t*2.0;
                 let n=18;let i=0;
                 while(i<n){
                     let a=i*(360/n)+spin;
-                    if(angDiff(a,gap)>22){CreateShotA1(cx,cy,2.1,a,mB,8);}
+                    let gap1=t*2.0;
+                    let gap2=t*2.0+140+sin(dec*30)*60;
+                    let skip=(angDiff(a,gap1)<22);
+                    if(dec>0.4 && angDiff(a,gap2)<22*dec){skip=true;}
+                    if(!skip){
+                        let aa=a+sin(i*47+dec*40)*dec*10;
+                        CreateShotA1(cx,cy,2.1,aa,mB,8);
+                    }
                     i++;
                 }
                 spin+=9;
+                dec=DecayStep(dec,0.1,1.0);
             }
             if(t%26==0){
                 let ba=GetAngleToPlayer(objBoss);
                 CreateShotA1(cx,cy,3.2,ba,nC,6);
             }
         } else if(phase==6){
-            // 放射→停止→向きを変えて再加速(本数を絞る)
+            // 放射→停止→再加速。最初は綺麗に折れるが、ループごとに折れ角がばらけ崩れる
             if(t%96==0){
                 let n=12;let i=0;
                 while(i<n){
                     let a=i*(360/n)+spin;
-                    TStopGoBullet(cx,cy,2.6,a,mB,30,30,a+18,2.8,220);
+                    let bend=18+sin(i*60+dec*50)*dec*60;
+                    TStopGoBullet(cx,cy,2.6,a,mB,30,30,a+bend,2.8,220);
                     i++;
                 }
                 spin+=12;
+                dec=DecayStep(dec,0.18,1.0);
             }
             if(t%36==0){
                 let ba=GetAngleToPlayer(objBoss);
                 FireNway(cx,cy,2,ba,16,2.4,sB,6);
             }
         } else if(phase==7){
-            // 対の螺旋を緩やかに(2条)
+            // 整った対の螺旋。ループごとに片側がずれて螺旋が崩れていく
             if(t%9==0){
+                let off=sin(dec*40)*dec*30;
                 CreateShotA1(cx,cy,2.2,spin,mB,5);
-                CreateShotA1(cx,cy,2.2,spin+180,mB,5);
+                CreateShotA1(cx,cy,2.2,spin+180+off,sB,5);
                 spin+=10;
+                dec=DecayStep(dec,0.03,1.0);
             }
         } else {
-            // 終: 自機狙い + 広がるリング(密度は最終戦でも抑える)
+            // 終: 全パターンが少しずつ崩れる総力戦
             if(t%18==0){
-                let i=0;while(i<3){CreateShotA1(cx,cy,2.2,spin+i*120,mB,5);i++;}
+                let i=0;
+                while(i<3){
+                    let a=spin+i*120+sin(i*120+dec*50)*dec*18;
+                    CreateShotA1(cx,cy,2.2,a,mB,5);
+                    i++;
+                }
                 spin+=13;
+                dec=DecayStep(dec,0.05,1.0);
             }
-            if(t%60==0){FireRing(cx,cy,18,-spin,2.0,sB,8);}
+            if(t%60==0){FireRingDecay(cx,cy,18,-spin,2.0,sB,8,dec);}
             if(t%24==0){
                 let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,3,ba,18,3.0,rC,6);
+                FireNwayDecay(cx,cy,3,ba,18,3.0,rC,6,dec*0.5);
             }
         }
         t++;yield;
@@ -548,63 +604,88 @@ task TLauncher(phase){
 }
 
 // ================================================
-// 8フェーズの間奏スペル (主弾幕とは対照的な、別アイデアの古典弾幕)
+// 8フェーズの間奏スペル  テーマ「崩れ」
+// どれも整然とした配置/動きから始まり、ループごとに崩れていく。
 // ================================================
 
-// P1: 自機狙いの針をゆるく往復させる + 合間に薄いリング
+// P1: 等間隔の全方位リング。撒くたびに角度と速度が乱れて崩れる
 task TSpell1(){
-    let t=0;let nC=NeedleCol(1);let sB=BallS(1);
-    let sweep=-30;let dir=1;
+    let t=0;let mB=BallM(1);let sB=BallS(1);
+    let dec=0;let rot=0;
     while(t<360 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%9==0){
-            let ba=GetAngleToPlayer(objBoss);
-            CreateShotA1(cx,cy,3.6,ba+sweep,nC,6);
-            sweep+=dir*5;
-            if(sweep>30){dir=-1;}
-            if(sweep<-30){dir=1;}
+        if(t%40==0){
+            FireRingDecay(cx,cy,18,rot,2.0,mB,8,dec);
+            rot+=7;
+            dec=DecayStep(dec,0.13,1.0);
         }
-        if(t%70==0){FireRing(cx,cy,12,t,1.8,sB,8);}
+        if(t%80==0){
+            let ba=GetAngleToPlayer(objBoss);
+            FireNway(cx,cy,3,ba,18,2.6,sB,6);
+        }
         t++;yield;
     }
 }
 
-// P2: ゆっくり広がるリングを一定間隔で(派手な四角リングは廃止)
+// P2: 整った二重リング。歪みが蓄積してモアレが崩壊する
 task TSpell2(){
     let t=0;let mB=BallM(2);let sB=BallS(2);
-    let rot=0;
+    let rot=0;let dec=0;
     while(t<360 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%60==0){FireRing(cx,cy,14,rot,2.0,mB,8);rot+=14;}
-        if(t%60==30){FireRing(cx,cy,14,-rot+10,2.0,sB,8);}
+        if(t%56==0){
+            FireRingDecay(cx,cy,16,rot,2.0,mB,8,dec);
+            rot+=12;
+            dec=DecayStep(dec,0.12,1.0);
+        }
+        if(t%56==28){FireRingDecay(cx,cy,16,-rot+10,2.2,sB,8,dec);}
         t++;yield;
     }
 }
 
-// P3: 三方向の弾を回しながら撒く(六芒星の片側だけ・密度を下げる)
+// P3: 回転する三方向弾。最初は綺麗な三角、ループごとに対称が崩れる
 task TSpell3(){
     let t=0;let mB=BallM(3);let sB=BallSS(3);
-    let rot=0;
+    let rot=0;let dec=0;
     while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
         if(t%16==0){
-            let i=0;while(i<3){CreateShotA1(cx,cy,2.2,rot+i*120,mB,6);i++;}
+            let i=0;
+            while(i<3){
+                let a=rot+i*120+sin(i*120+dec*50)*dec*24;
+                CreateShotA1(cx,cy,2.2,a,mB,6);
+                i++;
+            }
             rot+=8;
+            dec=DecayStep(dec,0.07,1.0);
         }
         if(t%48==0){
-            let i=0;while(i<3){CreateShotA1(cx,cy,2.2,-rot+i*120+60,sB,6);i++;}
+            let i=0;
+            while(i<3){
+                let a=-rot+i*120+60+sin(i*77+dec*40)*dec*24;
+                CreateShotA1(cx,cy,2.2,a,sB,6);
+                i++;
+            }
         }
         t++;yield;
     }
 }
 
-// P4: ボス周囲を周回する振子弾(本数を絞る)+ 時折の自機狙い拡散
+// P4: 等間隔に周回する振子弾。ループごとに周回半径と角速度がばらけ環が崩れる
 task TSpell4(){
     let t=0;let mB=BallM(4);let sB=BallS(4);
+    let dec=0;
     while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
         if(t%48==0){
-            let i=0;while(i<5){TPendulumBullet(cx,cy,mB,40+i*8,i*72,2.0,200);i++;}
+            let i=0;
+            while(i<5){
+                let r=40+i*8+sin(i*50+dec*40)*dec*22;
+                let sp=2.0+sin(i*33)*dec*1.0;
+                TPendulumBullet(cx,cy,mB,r,i*72,sp,200);
+                i++;
+            }
+            dec=DecayStep(dec,0.14,1.0);
         }
         if(t%70==0){
             let ba=GetAngleToPlayer(objBoss);
@@ -614,11 +695,18 @@ task TSpell4(){
     }
 }
 
-// P5: 上方からの雨をゆるく + 自機基準の十字バースト
+// P5: 整然と降る雨。ループごとに落下角がばらつき、整列が崩れる
 task TSpell5(){
     let t=0;let mB=BallM(5);let rC=RiceCol(5);
+    let dec=0;let col=0;
     while(t<350 && !Obj_IsDeleted(objBoss)){
-        if(t%10==0){TWallBullet(0,rand(10,374),2.4,90,mB,210);}
+        if(t%8==0){
+            // 最初は等間隔の格子状、崩れるほど位置と角度がずれる
+            let x=20+col*40+sin(col*30+dec*40)*dec*30;
+            let ang=90+sin(col*47+dec*60)*dec*22;
+            TWallBullet(0,x,2.4,ang,mB,210);
+            col++;if(col>=9){col=0;dec=DecayStep(dec,0.12,1.0);}
+        }
         if(t%50==0){
             let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
             let ba=GetAngleToPlayer(objBoss);
@@ -628,18 +716,21 @@ task TSpell5(){
     }
 }
 
-// P6: 放射→停止→直角に折れて再加速(本数を絞り間隔を広く)+ 細い自機狙い
+// P6: 放射→停止→折れて再加速。最初は綺麗に折れ、ループごとに折れ角が崩れる
 task TSpell6(){
     let t=0;let mB=BallM(6);let sB=BallS(6);
+    let dec=0;
     while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
         if(t%90==0){
             let n=10;let i=0;
             while(i<n){
                 let a=i*(360/n)+t;
-                TStopGoBullet(cx,cy,2.6,a,mB,28,32,a+90,2.6,220);
+                let bend=90+sin(i*60+dec*50)*dec*70;
+                TStopGoBullet(cx,cy,2.6,a,mB,28,32,a+bend,2.6,220);
                 i++;
             }
+            dec=DecayStep(dec,0.2,1.0);
         }
         if(t%30==0){
             let ba=GetAngleToPlayer(objBoss);
@@ -649,25 +740,28 @@ task TSpell6(){
     }
 }
 
-// P7: 対の曲線弾を緩やかに放ち二重螺旋を描く
+// P7: 整った二重螺旋。片側のずれが蓄積して螺旋が崩れる
 task TSpell7(){
     let t=0;let mB=BallM(7);let sB=BallS(7);
+    let dec=0;
     while(t<350 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
         if(t%14==0){
             let a=t*5;
+            let off=sin(dec*40)*dec*40;
             TCurveBullet(cx,cy,2.0,a,mB,1.2,240);
-            TCurveBullet(cx,cy,2.0,a+180,sB,1.2,240);
+            TCurveBullet(cx,cy,2.0,a+180+off,sB,1.2+dec*0.5,240);
+            dec=DecayStep(dec,0.05,1.0);
         }
         t++;yield;
     }
 }
 
-// P8: 四隅からの狙い弾 + ゆるい降雨 + 広がるリング + 自機狙い米弾(最終戦も密度は抑える)
+// P8: 四隅・降雨・回転リングの整然合奏が、ループごとに全部崩れていく総力戦
 task TSpell8(){
     let t=0;let mB=BallM(8);let sB=BallSS(8);let rC=RiceCol(8);
     let corners=[[10,10],[374,10],[10,438],[374,438]];
-    let rot=0;
+    let rot=0;let dec=0;
     while(t<420 && !Obj_IsDeleted(objBoss)){
         let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
         if(t%50==0){
@@ -675,15 +769,20 @@ task TSpell8(){
             while(i<4){
                 let cor=corners[i];
                 let ang=atan2(cy-cor[1],cx-cor[0]);
-                FireNway(cor[0],cor[1],3,ang,18,2.2,mB,8);
+                FireNwayDecay(cor[0],cor[1],3,ang,18,2.2,mB,8,dec);
                 i++;
             }
+            dec=DecayStep(dec,0.1,1.0);
         }
-        if(t%12==0){TWallBullet(0,rand(10,374),2.2,90,sB,200);}
-        if(t%34==0){FireRing(cx,cy,16,rot,2.0,mB,8);rot+=12;}
+        if(t%12==0){
+            let x=rand(10,374);
+            let ang=90+sin(t*0.3+dec*40)*dec*20;
+            TWallBullet(0,x,2.2,ang,sB,200);
+        }
+        if(t%34==0){FireRingDecay(cx,cy,16,rot,2.0,mB,8,dec);rot+=12;}
         if(t%40==0){
             let ba=GetAngleToPlayer(objBoss);
-            FireNway(cx,cy,5,ba,30,3.4,rC,6);
+            FireNwayDecay(cx,cy,5,ba,30,3.4,rC,6,dec*0.5);
         }
         t++;yield;
     }

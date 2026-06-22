@@ -1,7 +1,7 @@
 #TouhouDanmakufu[Single]
 #ScriptVersion[3]
-#Title["Chromatic Polyhedra"]
-#Text["Rotating polyhedron boss. Eight phases of classic-style danmaku, each with its own colour and rhythm."]
+#Title["氷華乱舞 -融-"]
+#Text["雪と氷の結晶が完璧な形に結び、ループを経るごとに融けてゆく。寒色は熱を帯びて暖色に変わり、滴り、砕け、対称を失う。安置を持つ避けられる弾幕。"]
 
 #include "script/default_system/Default_ShotConst.txt"
 
@@ -12,11 +12,14 @@ let objBoss;
 let objScene;
 let gPhase=0;
 let gFrame=0;
-let gAx=0; let gAy=0; let gAz=0;
+let gCol=0.0;          // 融解度 0..1 (ループ毎に増す)
+let gRot=0.0;
+let gSpin=1.0;
+let gDone=0;
+let gArm=[];
 
-let CX=192;
-let CY=120;
-let PHASE_LIFE=720;
+let BX=192;
+let BY=110;
 let SCREEN_W=384;
 let SCREEN_H=448;
 
@@ -25,823 +28,401 @@ let SCREEN_H=448;
 // ================================================
 function wait(f){let i=0;while(i<f){yield;i++;}}
 function abso(x){if(x<0){return -x;}return x;}
-function bit(n,b){let d=floor(n/b);return d%2;}
-function clampv(x,lo,hi){if(x<lo){return lo;}if(x>hi){return hi;}return x;}
-// 角度を0-360に正規化(負の剰余対策)
-function norm360(a){let x=a%360;if(x<0){x+=360;}return x;}
-// 2方向の角度差(0-180)
-function angDiff(a,b){let d=norm360(a-b);if(d>180){d=360-d;}return d;}
+function clampf(x,lo,hi){if(x<lo){return lo;}if(x>hi){return hi;}return x;}
+function idx8(p){let i=trunc(p)%8;if(i<0){i+=8;}return i;}
+function idx3(p){let i=trunc(p)%3;if(i<0){i+=3;}return i;}
+function angDiff(a,b){let d=(a-b)%360;if(d<-180){d+=360;}if(d>180){d-=360;}return d;}
 
-function rotate3(x,y,z,ax,ay,az){
-    let sx=sin(ax);let cx2=cos(ax);
-    let sy=sin(ay);let cy2=cos(ay);
-    let sz=sin(az);let cz2=cos(az);
-    let y1=y*cx2-z*sx; let z1=y*sx+z*cx2;
-    let x2=x*cy2+z1*sy; let z2=-x*sy+z1*cy2;
-    let x3=x2*cz2-y1*sz; let y3=x2*sz+y1*cz2;
-    return [x3,y3,z2];
+// ---- 融解の色: col が低いと寒色(凍結)、高いと暖色(融けて熱) ----
+function ColMeltBall(p,col){
+    if(rand(0,1)<col*0.65){let w=[DS_BALL_M_RED,DS_BALL_M_ORANGE,DS_BALL_M_YELLOW];return w[idx3(p)];}
+    let c=[DS_BALL_M_SKY,DS_BALL_M_BLUE,DS_BALL_M_WHITE];return c[idx3(p)];
 }
+function ColMeltNeedle(p,col){
+    if(rand(0,1)<col*0.6){let w=[DS_NEEDLE_RED,DS_NEEDLE_ORANGE,DS_NEEDLE_YELLOW];return w[idx3(p)];}
+    let c=[DS_NEEDLE_SKY,DS_NEEDLE_BLUE,DS_NEEDLE_WHITE];return c[idx3(p)];
+}
+function ColMeltLight(p,col){
+    if(rand(0,1)<col*0.6){let w=[DS_LIGHT_RED,DS_LIGHT_ORANGE,DS_LIGHT_YELLOW];return w[idx3(p)];}
+    let c=[DS_LIGHT_SKY,DS_LIGHT_BLUE,DS_LIGHT_WHITE];return c[idx3(p)];
+}
+function ColBallSS(p){let a=[DS_BALL_SS_RED,DS_BALL_SS_ORANGE,DS_BALL_SS_YELLOW,DS_BALL_SS_GREEN,DS_BALL_SS_SKY,DS_BALL_SS_BLUE,DS_BALL_SS_PURPLE,DS_BALL_SS_WHITE];return a[idx8(p)];}
+function ColBallL(p){let a=[DS_BALL_L_RED,DS_BALL_L_ORANGE,DS_BALL_L_YELLOW,DS_BALL_L_GREEN,DS_BALL_L_SKY,DS_BALL_L_BLUE,DS_BALL_L_PURPLE,DS_BALL_L_WHITE];return a[idx8(p)];}
+function ColStarS(p){let a=[DS_STAR_S_RED,DS_STAR_S_ORANGE,DS_STAR_S_YELLOW,DS_STAR_S_GREEN,DS_STAR_S_SKY,DS_STAR_S_BLUE,DS_STAR_S_PURPLE,DS_STAR_S_WHITE];return a[idx8(p)];}
+function ColStarM(p){let a=[DS_STAR_M_RED,DS_STAR_M_ORANGE,DS_STAR_M_YELLOW,DS_STAR_M_GREEN,DS_STAR_M_SKY,DS_STAR_M_BLUE,DS_STAR_M_PURPLE,DS_STAR_M_WHITE];return a[idx8(p)];}
+function ColRiceS(p){let a=[DS_RICE_S_RED,DS_RICE_S_ORANGE,DS_RICE_S_YELLOW,DS_RICE_S_GREEN,DS_RICE_S_SKY,DS_RICE_S_BLUE,DS_RICE_S_PURPLE,DS_RICE_S_WHITE];return a[idx8(p)];}
+function ColButterfly(p){let a=[DS_BUTTERFLY_RED,DS_BUTTERFLY_ORANGE,DS_BUTTERFLY_YELLOW,DS_BUTTERFLY_GREEN,DS_BUTTERFLY_SKY,DS_BUTTERFLY_BLUE,DS_BUTTERFLY_PURPLE,DS_BUTTERFLY_WHITE];return a[idx8(p)];}
 
-function proj(z){
-    let f=420.0;
-    if(z<=-f){return 0.01;}
-    let s=f/(f+z);
-    if(s>2.0){return 2.0;}
-    if(s<0.35){return 0.35;}
-    return s;
-}
-
-// ================================================
-// 図形データ: 正多面体5種 + 結晶的構造3種(ボスの見た目)
-// ================================================
-function shape_tetra(){
-    let v=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]];
-    let e=[[0,1],[0,2],[0,3],[1,2],[2,3],[3,1]];
-    return [v,e];
-}
-function shape_cube(){
-    let r=1.1;let v=[];let i=0;
-    while(i<8){
-        let x=r*(1-2*bit(i,1));
-        let y=r*(1-2*bit(i,2));
-        let z=r*(1-2*bit(i,4));
-        v=v~[[x,y,z]];i++;
-    }
-    let e=[[0,1],[1,3],[3,2],[2,0],[4,5],[5,7],[7,6],[6,4],[0,4],[1,5],[2,6],[3,7]];
-    return [v,e];
-}
-function shape_octa(){
-    let r=1.6;
-    let v=[[0,-r,0],[r,0,0],[0,0,r],[-r,0,0],[0,0,-r],[0,r,0]];
-    let e=[[0,1],[0,2],[0,3],[0,4],[5,1],[5,2],[5,3],[5,4],[1,2],[2,3],[3,4],[4,1]];
-    return [v,e];
-}
-function shape_dodeca(){
-    let g=1.618; let ig=1.0/g;
-    let v=[];let i=0;
-    while(i<8){v=v~[[1-2*bit(i,1), 1-2*bit(i,2), 1-2*bit(i,4)]];i++;}
-    v=v~[[0, ig,  g],[0, ig, -g],[0,-ig,  g],[0,-ig, -g]];
-    v=v~[[ ig, g,0],[ ig,-g,0],[-ig, g,0],[-ig,-g,0]];
-    v=v~[[ g,0, ig],[ g,0,-ig],[-g,0, ig],[-g,0,-ig]];
-    let sc=0.62;let vv=[];i=0;
-    while(i<length(v)){vv=vv~[[v[i][0]*sc,v[i][1]*sc,v[i][2]*sc]];i++;}
-    let e=[];i=0;
-    while(i<length(vv)){
-        let j=i+1;
-        while(j<length(vv)){
-            let dx=vv[i][0]-vv[j][0];let dy=vv[i][1]-vv[j][1];let dz=vv[i][2]-vv[j][2];
-            let d=(dx*dx+dy*dy+dz*dz)^0.5;
-            if(d>0.6 && d<0.95){e=e~[[i,j]];}
-            j++;
-        }
-        i++;
-    }
-    return [vv,e];
-}
-function shape_icosa(){
-    let g=1.618; let s=1.0;
-    let v=[[0,s,g],[0,-s,g],[0,s,-g],[0,-s,-g],
-           [s,g,0],[-s,g,0],[s,-g,0],[-s,-g,0],
-           [g,0,s],[g,0,-s],[-g,0,s],[-g,0,-s]];
-    let e=[[0,1],[0,4],[0,5],[0,8],[0,10],[1,6],[1,7],[1,8],[1,10],
-           [2,3],[2,4],[2,5],[2,9],[2,11],[3,6],[3,7],[3,9],[3,11],
-           [4,8],[4,9],[5,10],[5,11],[6,8],[6,9],[7,10],[7,11],[8,9],[10,11]];
-    return [v,e];
-}
-function shape_crystal1(){
-    let v=[];let e=[];
-    let centers=[[0,0,0],[1.5,0,0],[-1.5,0,0],[0,1.5,0],[0,-1.5,0],[0,0,1.5],[0,0,-1.5]];
-    let c=0;
-    while(c<length(centers)){
-        let cx=centers[c][0];let cy=centers[c][1];let cz=centers[c][2];
-        let base=length(v);let r=0.5;
-        v=v~[[cx,cy-r,cz],[cx+r,cy,cz],[cx,cy,cz+r],[cx-r,cy,cz],[cx,cy,cz-r],[cx,cy+r,cz]];
-        e=e~[[base+0,base+1],[base+0,base+2],[base+0,base+3],[base+0,base+4],
-              [base+5,base+1],[base+5,base+2],[base+5,base+3],[base+5,base+4],
-              [base+1,base+2],[base+2,base+3],[base+3,base+4],[base+4,base+1]];
-        c++;
-    }
-    return [v,e];
-}
-function shape_crystal2(){
-    let v=[];let e=[];let N=14;let i=0;
-    while(i<N){
-        let t=i/(N-1);
-        let a=t*720;
-        let z=-1.4+t*2.8;
-        let r=1.0;
-        v=v~[[cos(a)*r,sin(a)*r,z]];
-        v=v~[[cos(a+180)*r,sin(a+180)*r,z]];
-        if(i>0){
-            e=e~[[(i-1)*2,i*2]];
-            e=e~[[(i-1)*2+1,i*2+1]];
-        }
-        if(i%2==0){e=e~[[i*2,i*2+1]];}
-        i++;
-    }
-    return [v,e];
-}
-function shape_crystal3(){
-    let v=[];let e=[];let N=8;let layers=4;let li=0;
-    while(li<layers){
-        let z=-1.3+li*(2.6/(layers-1));
-        let base=length(v);let i=0;
-        while(i<N){
-            let a=i*360/N+li*8;
-            v=v~[[cos(a)*1.2,sin(a)*1.2,z]];
-            i++;
-        }
-        i=0;
-        while(i<N){e=e~[[base+i,base+(i+1)%N]];i++;}
-        if(li>0){
-            i=0;
-            while(i<N){e=e~[[base-N+i,base+i]];i++;}
-        }
-        li++;
-    }
-    return [v,e];
+function AtkName(aid){
+    if(aid==1){return "第一幕　「六花」";}
+    if(aid==2){return "第二幕　「氷柱の雨」";}
+    if(aid==3){return "第三幕　「霜の壁」";}
+    if(aid==4){return "第四幕　「雪輪の暈」";}
+    if(aid==5){return "第五幕　「砕ける結晶星」";}
+    if(aid==6){return "第六幕　「吹雪」";}
+    if(aid==7){return "第七幕　「氷薔薇」";}
+    if(aid==8){return "第八幕　「ダイヤモンドダスト」";}
+    if(aid==9){return "雪符「グランド・ヘキサフレーク」";}
+    if(aid==10){return "氷符「ジグザグ・アイシクル」";}
+    if(aid==11){return "樹氷「フロスト・ブランチング」";}
+    if(aid==12){return "極光「オーロラ・カーテン」";}
+    if(aid==13){return "崩符「シメトリー・メルト」";}
+    if(aid==14){return "流氷「アイス・メテオ」";}
+    if(aid==15){return "晶符「クリスタル・クロス」";}
+    return "終符「ソルスティス・メルトダウン」";
 }
 
-function GetShape(p){
-    if(p==1){return shape_tetra();}
-    if(p==2){return shape_cube();}
-    if(p==3){return shape_octa();}
-    if(p==4){return shape_dodeca();}
-    if(p==5){return shape_icosa();}
-    if(p==6){return shape_crystal1();}
-    if(p==7){return shape_crystal2();}
-    return shape_crystal3();
+// 1発撃つ(発光)
+function ShootAt(x,y,ang,spd,gfx){
+    let o=CreateShotA1(x,y,spd,ang,gfx,0);
+    ObjShot_SetSpellResist(o,true);
+    ObjRender_SetBlendType(o,BLEND_ADD_ARGB);
+    return o;
 }
-
-// ================================================
-// フェーズ色
-// ================================================
-function BallM(p){
-    if(p==1){return DS_BALL_M_RED;}
-    if(p==2){return DS_BALL_M_ORANGE;}
-    if(p==3){return DS_BALL_M_YELLOW;}
-    if(p==4){return DS_BALL_M_GREEN;}
-    if(p==5){return DS_BALL_M_SKY;}
-    if(p==6){return DS_BALL_M_BLUE;}
-    if(p==7){return DS_BALL_M_PURPLE;}
-    return DS_BALL_M_WHITE;
-}
-function BallS(p){
-    if(p==1){return DS_BALL_S_RED;}
-    if(p==2){return DS_BALL_S_ORANGE;}
-    if(p==3){return DS_BALL_S_YELLOW;}
-    if(p==4){return DS_BALL_S_GREEN;}
-    if(p==5){return DS_BALL_S_SKY;}
-    if(p==6){return DS_BALL_S_BLUE;}
-    if(p==7){return DS_BALL_S_PURPLE;}
-    return DS_BALL_S_WHITE;
-}
-function BallSS(p){
-    if(p==1){return DS_BALL_SS_RED;}
-    if(p==2){return DS_BALL_SS_ORANGE;}
-    if(p==3){return DS_BALL_SS_YELLOW;}
-    if(p==4){return DS_BALL_SS_GREEN;}
-    if(p==5){return DS_BALL_SS_SKY;}
-    if(p==6){return DS_BALL_SS_BLUE;}
-    if(p==7){return DS_BALL_SS_PURPLE;}
-    return DS_BALL_SS_WHITE;
-}
-function RiceCol(p){
-    if(p==1){return DS_RICE_M_RED;}
-    if(p==2){return DS_RICE_M_ORANGE;}
-    if(p==3){return DS_RICE_M_YELLOW;}
-    if(p==4){return DS_RICE_M_GREEN;}
-    if(p==5){return DS_RICE_M_SKY;}
-    if(p==6){return DS_RICE_M_BLUE;}
-    if(p==7){return DS_RICE_M_PURPLE;}
-    return DS_RICE_M_WHITE;
-}
-function NeedleCol(p){
-    if(p==1){return DS_NEEDLE_RED;}
-    if(p==2){return DS_NEEDLE_RED;}
-    if(p==3){return DS_NEEDLE_YELLOW;}
-    if(p==4){return DS_NEEDLE_GREEN;}
-    if(p==5){return DS_NEEDLE_BLUE;}
-    if(p==6){return DS_NEEDLE_BLUE;}
-    if(p==7){return DS_NEEDLE_PURPLE;}
-    return DS_NEEDLE_RED;
-}
-
-function PhaseName(p){
-    if(p==1){return "「紅色の誓い」";}
-    if(p==2){return "「琥珀色の風車」";}
-    if(p==3){return "「黄昏のモアレ」";}
-    if(p==4){return "「翠色の花園」";}
-    if(p==5){return "「蒼穹の輪舞」";}
-    if(p==6){return "「氷晶の静寂」";}
-    if(p==7){return "「紫電の二重螺旋」";}
-    return "「全色終焉」";
-}
-
-// フェーズごとの回転の個性 [ax,ay,az,揺れ振幅,揺れ周期]
-function RotPersonality(p){
-    if(p==1){return [1.6, 0.3, 0.3, 0.0, 1.0];}
-    if(p==2){return [0.3, 1.6, 0.3, 0.0, 1.0];}
-    if(p==3){return [0.5, 0.5, 1.7, 0.0, 1.0];}
-    if(p==4){return [0.9, 0.9, 0.9, 0.4, 0.02];}
-    if(p==5){return [1.3, -1.1, 0.4, 0.0, 1.0];}
-    if(p==6){return [0.2, 0.2, 0.2, 1.2, 0.05];}
-    if(p==7){return [0.0, 0.0, 2.2, 0.0, 1.0];}
-    return [1.0, 1.0, -1.4, 0.5, 0.04];
-}
-
-// ================================================
-// ボスの見た目: 回転するワイヤーフレーム多面体
-// 太さ可変レーザーをグロー2層(太い外層+細い芯)で重ねて辺を描画。
-// 頂点では辺同士の角度から延長量を求め、レーザー端を密着させる。
-// このレーザーは当たり判定を持たない(純粋な演出)。
-// ================================================
-function MakeGlowLaser(gfx){
-    let L=ObjShot_Create(OBJ_STRAIGHT_LASER);
-    ObjShot_SetGraphic(L,gfx);
-    ObjShot_SetAutoDelete(L,false);
-    ObjShot_SetSpellResist(L,true);
-    ObjShot_SetIntersectionEnable(L,false);
-    ObjStLaser_SetSource(L,false);
-    ObjLaser_SetLength(L,1);
-    ObjLaser_SetRenderWidth(L,1);
-    ObjMove_SetPosition(L,CX,CY);
-    ObjMove_SetSpeed(L,0);
-    ObjMove_SetAngle(L,0);
-    ObjRender_SetBlendType(L,BLEND_ADD_ARGB);
-    ObjRender_SetAlpha(L,0);
-    ObjShot_Regist(L);
-    ObjShot_SetDeleteFrame(L,99999);
-    return L;
-}
-function DrawEdgeGlow(L,x1,y1,x2,y2,z,W,ov1,ov2,alphaScale){
-    let dx=x2-x1;let dy=y2-y1;
-    let len=(dx*dx+dy*dy)^0.5;
-    if(len<1.0||len>650||z<-380){
-        ObjRender_SetAlpha(L,0);
-        return;
+// 融ける弾: col が増すほど軌道が下方向へ垂れる(滴り)
+function ShootMelt(x,y,ang,spd,gfx,col){
+    let o=ShootAt(x,y,ang,spd,gfx);
+    if(col>0.08){
+        let turn=1;if(angDiff(90,ang)<0){turn=-1;}
+        ObjMove_SetAngularVelocity(o,turn*col*0.9);
     }
-    let ux=dx/len;let uy=dy/len;
-    let bx=x1-ux*ov1;let by=y1-uy*ov1;
-    ObjMove_SetPosition(L,bx,by);
-    ObjStLaser_SetAngle(L,atan2(dy,dx));
-    ObjLaser_SetLength(L,len+ov1+ov2);
-    ObjLaser_SetRenderWidth(L,W);
-    if(z<0){ObjRender_SetAlpha(L,235*alphaScale);}
-    else{ObjRender_SetAlpha(L,55*alphaScale);}
+    return o;
 }
-function VertexAngles(vIdx,vx,vy,edges){
-    let angles=[];
-    let i=0;
-    while(i<length(edges)){
-        let a=edges[i][0];let b=edges[i][1];
-        if(a==vIdx){angles=angles~[atan2(vy[b]-vy[a],vx[b]-vx[a])];}
-        else if(b==vIdx){angles=angles~[atan2(vy[a]-vy[b],vx[a]-vx[b])];}
-        i++;
-    }
-    return angles;
-}
-function VertexOverlap(angles,W){
-    let n=length(angles);
-    if(n<2){return W*0.35;}
-    let minPhi=360;
-    let i=0;
-    while(i<n){
-        let j=i+1;
-        while(j<n){
-            let d=angDiff(angles[i],angles[j]);
-            if(d<minPhi){minPhi=d;}
-            j++;
-        }
-        i++;
-    }
-    if(minPhi<40){minPhi=40;}
-    let half=minPhi/2;
-    let ov=(W*0.5)*(cos(half)/sin(half));
-    if(ov<W*0.35){ov=W*0.35;}
-    if(ov>W*1.0){ov=W*1.0;}
-    return ov;
-}
-
-task TStaticShape(verts,edges,phase,baseR){
-    let outer=[];let inner=[];
-    let i=0;
-    while(i<length(edges)){
-        outer=outer~[MakeGlowLaser(BallSS(phase))];
-        inner=inner~[MakeGlowLaser(BallSS(phase))];
-        i++;
-    }
-    let lf=0;
-    while(gPhase==phase && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        let pulse=0.5+0.5*sin(lf*4);
-        let Wcore=10.0+pulse*3.0;
-        let Wglow=Wcore*2.4;
-
-        let vx=[];let vy=[];let vz=[];
-        i=0;
-        while(i<length(verts)){
-            let v=verts[i];
-            let p=rotate3(v[0]*baseR,v[1]*baseR,v[2]*baseR,gAx,gAy,gAz);
-            let sc=proj(p[2]);
-            vx=vx~[cx+p[0]*sc];
-            vy=vy~[cy+p[1]*sc];
-            vz=vz~[p[2]];
-            i++;
-        }
-        let ovOuter=[];let ovInner=[];
-        i=0;
-        while(i<length(verts)){
-            let angs=VertexAngles(i,vx,vy,edges);
-            ovOuter=ovOuter~[VertexOverlap(angs,Wglow)];
-            ovInner=ovInner~[VertexOverlap(angs,Wcore)];
-            i++;
-        }
-        i=0;
-        while(i<length(edges)){
-            let i1=edges[i][0];let i2=edges[i][1];
-            let zmid=(vz[i1]+vz[i2])*0.5;
-            DrawEdgeGlow(outer[i],vx[i1],vy[i1],vx[i2],vy[i2],zmid,Wglow,ovOuter[i1],ovOuter[i2],0.4);
-            DrawEdgeGlow(inner[i],vx[i1],vy[i1],vx[i2],vy[i2],zmid,Wcore,ovInner[i1],ovInner[i2],1.0);
-            i++;
-        }
-        lf++;yield;
-    }
-    i=0;while(i<length(outer)){Obj_Delete(outer[i]);i++;}
-    i=0;while(i<length(inner)){Obj_Delete(inner[i]);i++;}
-}
-
-// ================================================
-// 発射ヘルパ(即時発射の関数)
-// ================================================
-function FireRing(cx,cy,n,baseAng,spd,gfx,delay){
-    let i=0;
-    while(i<n){CreateShotA1(cx,cy,spd,baseAng+i*(360/n),gfx,delay);i++;}
-    return 0;
-}
-function FireNway(cx,cy,n,centerAng,spread,spd,gfx,delay){
-    let i=0;
-    while(i<n){
-        let a=centerAng;
-        if(n>1){a=centerAng-spread/2+i*(spread/(n-1));}
-        CreateShotA1(cx,cy,spd,a,gfx,delay);
-        i++;
-    }
-    return 0;
-}
-// 崩れ: dec(0で整然→大きいほど乱れる)に応じて角度と速度を歪ませて撒く
-function FireRingDecay(cx,cy,n,baseAng,spd,gfx,delay,dec){
-    let i=0;
-    while(i<n){
-        let a=baseAng+i*(360/n);
-        a+=sin(i*47+dec*40)*dec*16;
-        let s=spd*(1.0+sin(i*23+dec*70)*dec*0.45);
-        if(s<0.6){s=0.6;}
-        CreateShotA1(cx,cy,s,a,gfx,delay);
-        i++;
-    }
-    return 0;
-}
-function FireNwayDecay(cx,cy,n,centerAng,spread,spd,gfx,delay,dec){
-    let i=0;
-    while(i<n){
-        let a=centerAng;
-        if(n>1){a=centerAng-spread/2+i*(spread/(n-1));}
-        a+=sin(i*53+dec*60)*dec*14;
-        let s=spd*(1.0+sin(i*31+dec*40)*dec*0.4);
-        if(s<0.6){s=0.6;}
-        CreateShotA1(cx,cy,s,a,gfx,delay);
-        i++;
-    }
-    return 0;
-}
-// 崩れ量の更新: ループごとに増え、上限capで頭打ち(整然→崩壊の往復はResetで)
-function DecayStep(dec,step,cap){
-    let d=dec+step;
-    if(d>cap){d=cap;}
-    return d;
-}
-
-// ================================================
-// 通常弾幕補助タスク
-// 画面内に留まる弾(振子・停止・曲線)は経過後にObj_Deleteで明示削除する。
-// ================================================
-task TAccelBullet(x,y,spd,ang,gfx,accel,maxsp,life){
-    let o=CreateShotA1(x,y,spd,ang,gfx,6);
-    ObjMove_SetAcceleration(o,accel);
-    if(maxsp>0){ObjMove_SetMaxSpeed(o,maxsp);}
-    let t=0;while(!Obj_IsDeleted(o)&&t<life){t++;yield;}
-    if(!Obj_IsDeleted(o)){Obj_Delete(o);}
-}
-task TCurveBullet(x,y,spd,ang,gfx,turn,life){
-    let o=CreateShotA1(x,y,spd,ang,gfx,6);
+// 砕ける結晶: 一定時間後に欠片へ分裂(有限寿命=残留しない)
+task TShard(x,y,ang,spd,gfx,col,life){
+    let o=ShootMelt(x,y,ang,spd,gfx,col);
     let t=0;
-    while(!Obj_IsDeleted(o)&&t<life){ObjMove_SetAngle(o,ObjMove_GetAngle(o)+turn);t++;yield;}
-    if(!Obj_IsDeleted(o)){Obj_Delete(o);}
-}
-task TStopGoBullet(x,y,spd,ang,gfx,stopAt,waitT,newAng,newSpd,life){
-    let o=CreateShotA1(x,y,spd,ang,gfx,6);
-    let t=0;
-    while(!Obj_IsDeleted(o)&&t<stopAt){t++;yield;}
-    if(!Obj_IsDeleted(o)){ObjMove_SetSpeed(o,0);}
-    let w=0;
-    while(!Obj_IsDeleted(o)&&w<waitT){w++;yield;}
-    if(!Obj_IsDeleted(o)){ObjMove_SetAngle(o,newAng);ObjMove_SetSpeed(o,newSpd);}
-    let u=0;
-    while(!Obj_IsDeleted(o)&&u<life){u++;yield;}
-    if(!Obj_IsDeleted(o)){Obj_Delete(o);}
-}
-task TPendulumBullet(x,y,gfx,radius,baseAngle,angSpeed,life){
-    let o=CreateShotA1(x,y,0,0,gfx,6);
-    ObjMove_SetSpeed(o,0);
-    let a=baseAngle;let t=0;
-    while(!Obj_IsDeleted(o)&&t<life){
-        a+=angSpeed;
-        ObjMove_SetPosition(o,x+cos(a)*radius,y+sin(a)*radius);
-        t++;yield;
+    while(!Obj_IsDeleted(o) && t<life){t++;yield;}
+    if(!Obj_IsDeleted(o)){
+        let px=ObjMove_GetX(o);let py=ObjMove_GetY(o);
+        Obj_Delete(o);
+        let m=2+trunc(col*4);
+        let k=0;
+        while(k<m){
+            ShootAt(px,py,ang+k*(360.0/m)+rand(-1,1)*col*30,1.1+rand(0,0.6),ColStarS(k));
+            k++;
+        }
     }
-    if(!Obj_IsDeleted(o)){Obj_Delete(o);}
-}
-task TWallBullet(side,pos,spd,ang,gfx,life){
-    let x=0;let y=0;
-    if(side==0){x=pos;y=-10;}
-    else if(side==1){x=SCREEN_W+10;y=pos;}
-    else if(side==2){x=pos;y=SCREEN_H+10;}
-    else{x=-10;y=pos;}
-    let o=CreateShotA1(x,y,spd,ang,gfx,6);
-    let t=0;while(!Obj_IsDeleted(o)&&t<life){t++;yield;}
-    if(!Obj_IsDeleted(o)){Obj_Delete(o);}
 }
 
 // ================================================
-// フェーズ主弾幕  テーマ「崩れ」
-// 最初は整然と並ぶ/動く弾が、ループを重ねるごとにdecが増えて崩れていく。
+// 本体 1-8
 // ================================================
-task TLauncher(phase){
-    let t=0;
-    let spin=0;
-    let dec=0;   // 崩れ量(0=整然)
-    while(gPhase==phase && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        let mB=BallM(phase);let sB=BallS(phase);
-        let nC=NeedleCol(phase);let rC=RiceCol(phase);
-
-        if(phase==1){
-            // 整然と並ぶ全方位リングが、撒くたびに角度と速度を乱して崩れる
-            if(t%50==0){
-                FireRingDecay(cx,cy,16,spin,2.0,mB,8,dec);
-                spin+=9;
-                dec=DecayStep(dec,0.16,1.0);
+// 1: 六花 — 6回対称の雪結晶(側枝つき)。融けると枝が垂れ、暖色に変わる。
+function A1(bx,by,col,rot){
+    let a=0;
+    while(a<6){
+        let ang=a*60+rot*0.3;
+        ShootMelt(bx,by,ang,2.0,ColMeltBall(a,col),col);
+        ShootMelt(bx,by,ang+18,1.5,ColMeltBall(a+1,col),col);
+        ShootMelt(bx,by,ang-18,1.5,ColMeltBall(a+2,col),col);
+        a++;
+    }
+}
+// 2: 氷柱の雨 — 上端から落ちる氷柱。安全な列が流れる。融けると軌道が揺れて滴る。
+function A2(bx,by,col,rot){
+    let cols=9;let gap=trunc(rot/35)%cols;let i=0;
+    while(i<cols){
+        if(i!=gap){
+            let x=20+i*((SCREEN_W-40)/(cols-1));
+            ShootMelt(x,-10,90,1.8,ColMeltNeedle(i,col),col);
+        }
+        i++;
+    }
+}
+// 3: 霜の壁 — 左右の縁から伸びる霜。安全な段が上下に流れ、融けると霜が下へ垂れる。
+function A3(bx,by,col,rot){
+    let rows=8;let gap=trunc(rot/30)%rows;let i=0;
+    while(i<rows){
+        if(i!=gap){
+            let y=24+i*((SCREEN_H-60)/(rows-1));
+            ShootMelt(-10,y,0,1.7,ColMeltNeedle(i,col),col);
+            ShootMelt(SCREEN_W+10,y,180,1.7,ColMeltNeedle(i+1,col),col);
+        }
+        i++;
+    }
+}
+// 4: 雪輪の暈 — 隙間付きの環(暈)。融けると環が垂れ下がり、所々ひび割れて欠ける。
+function A4(bx,by,col,rot){
+    let n=22;let gapW=42-col*16;let i=0;
+    while(i<n){
+        let ang=i*(360.0/n);
+        if(abso(angDiff(ang,rot))>=gapW){
+            if(!(col>0.5 && rand(0,1)<col*0.25)){
+                ShootMelt(bx,by,ang,1.7,ColMeltBall(i,col),col);
             }
-            if(t%26==0){
-                let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,3,ba,20,2.6,sB,5);
-            }
-        } else if(phase==2){
-            // 4本腕の風車。腕の角度間隔がループごとにばらけて崩れる
-            if(t%14==0){
+        }
+        i++;
+    }
+}
+// 5: 砕ける結晶星 — 敵を回る結晶星が飛び、やがて砕けて欠片に。融けるほど欠片が増える。
+function A5(bx,by,col,rot){
+    let s=0;
+    while(s<3){
+        let sa=s*120+rot*1.4+gArm[s%length(gArm)]*col;
+        let sx=bx+cos(sa)*55;let sy=by+sin(sa)*55;
+        TShard(sx,sy,sa+90,1.7,ColStarM(s),col,30);
+        s++;
+    }
+}
+// 6: 吹雪 — 上端から斜めに流れる雪。安全な列があり、融けると風(横流れ)が強まる。
+function A6(bx,by,col,rot){
+    let cols=10;let drift=sin(rot*2)*(8+col*22);
+    let gap=trunc(rot/28)%cols;let i=0;
+    while(i<cols){
+        if(i!=gap){
+            let x=10+i*((SCREEN_W-20)/(cols-1));
+            ShootAt(x,-10,90+drift*0.25,1.6,ColMeltBall(i,col));
+        }
+        i++;
+    }
+}
+// 7: 氷薔薇 — 薔薇曲線の霜の花。融けると花弁が垂れて萎れ、欠ける。
+function A7(bx,by,col,rot){
+    let k=4;let n=28;let i=0;
+    while(i<n){
+        let th=i*(360.0/n);
+        let petal=trunc(th*k/360.0)%k;
+        let r=66*cos(k*th)+gArm[petal%length(gArm)]*col;
+        let ang=th+rot;
+        let x=bx+r*cos(ang);let y=by+r*sin(ang);
+        let outAng=atan2(y-by,x-bx);if(r<0){outAng=outAng+180;}
+        if(!(col>0.5 && rand(0,1)<col*0.25)){
+            ShootMelt(x,y,outAng,1.4,ColButterfly(petal+5),col);
+        }
+        i++;
+    }
+}
+// 8: ダイヤモンドダスト — 空気中で煌めく細氷。疎らで安置が広い。融けると暖色の煌めきに。
+function A8(bx,by,col,rot){
+    let n=8;let i=0;
+    while(i<n){
+        let ang=i*45+rot*0.5+rand(-1,1)*col*20;
+        ShootMelt(bx,by,ang,1.3+rand(0,0.6),ColRiceS(i+trunc(col*3)),col);
+        i++;
+    }
+}
+
+// ================================================
+// スペル 9-16(別意匠)
+// ================================================
+// 9: グランド・ヘキサフレーク — 大きな六花の二重環。動く隙間。融けると枝が垂れる。
+function A9(bx,by,col,rot){
+    let a=0;
+    while(a<6){
+        let ang=a*60+rot;
+        if(abso(angDiff(ang,rot*2))>=30){
+            ShootMelt(bx,by,ang,2.0,ColMeltBall(a,col),col);
+            ShootMelt(bx,by,ang+30,1.5,ColMeltBall(a+1,col),col);
+        }
+        a++;
+    }
+}
+// 10: ジグザグ・アイシクル — 氷柱の簾。安全列がジグザグに揺れて流れる。
+function A10(bx,by,col,rot){
+    let cols=11;let zig=sin(rot*4)*(2+col*3);
+    let gap=trunc(rot/30+zig)%cols;if(gap<0){gap+=cols;}
+    let i=0;
+    while(i<cols){
+        if(i!=gap){
+            let x=14+i*((SCREEN_W-28)/(cols-1));
+            ShootMelt(x,-10,90,1.8,ColMeltNeedle(i,col),col);
+        }
+        i++;
+    }
+}
+// 11: フロスト・ブランチング — 樹氷が伸びて先端で分岐(分裂)。融けるほど枝分かれが増える。
+function A11(bx,by,col,rot){
+    let n=6;let i=0;
+    while(i<n){TShard(bx,by,i*60+rot,2.0,ColStarM(i),col,28);i++;}
+}
+// 12: オーロラ・カーテン — 上端から波打って降る光のカーテン。波間に安置が流れる。
+function A12(bx,by,col,rot){
+    let n=14;let gap=trunc(rot/26)%n;let i=0;
+    while(i<n){
+        if(i!=gap){
+            let x=14+i*((SCREEN_W-28)/(n-1));
+            let phase=sin(rot*3+i*30)*(10+col*25);
+            ShootAt(x,-10,90+phase*0.2,1.5,ColMeltLight(i,col));
+        }
+        i++;
+    }
+}
+// 13: シメトリー・メルト — 6回対称の結晶が、融解に応じて対称数そのものを6→1に失う。
+function A13(bx,by,col,rot){
+    let sym=6-trunc(col*5);if(sym<1){sym=1;}
+    let n=24;let i=0;
+    while(i<n){
+        let ang=i*(360.0/n)+rot;
+        let mod=trunc(((ang%360)+360)%360*sym/360.0)%sym;
+        if(mod==0){ShootMelt(bx,by,ang,1.8,ColMeltBall(i,col),col);}
+        i++;
+    }
+}
+// 14: アイス・メテオ — 上端の車線から流氷が降り、落下後に砕ける。融けると車線が乱れ欠片増。
+function A14(bx,by,col,rot){
+    let lane=trunc(rot/30)%5;
+    let x=42+lane*70+rand(-1,1)*col*16;
+    TShard(x,-10,90+rand(-1,1)*col*10,2.2,ColBallL(lane),col,42);
+}
+// 15: クリスタル・クロス — 敵を巡る十字の晶砲に動く安置(ポケット)。融けるとポケットが乱れる。
+function A15(bx,by,col,rot){
+    let i=0;let pocket=rot*2+gArm[0]*col;
+    while(i<4){
+        let ang=i*90;let dist=56+sin(rot*3)*16;
+        let x=bx+cos(ang)*dist;let y=by+sin(ang)*dist;
+        let k=-2;
+        while(k<=2){
+            let a2=ang+180+k*16;
+            if(abso(angDiff(a2,pocket))>22){ShootMelt(x,y,a2,1.6,ColMeltBall(k+2,col),col);}
+            k++;
+        }
+        i++;
+    }
+}
+// 終: ソルスティス・メルトダウン — 隙間付きの環がゆっくり垂れ、時折融けた雫が上から滴る集大成。
+function A16(bx,by,col,rot){
+    let n=16;let gapW=40-col*8;let i=0;
+    while(i<n){
+        let ang=i*(360.0/n);
+        if(abso(angDiff(ang,rot+gArm[1]*col))>=gapW){
+            ShootMelt(bx,by,ang,1.8,ColMeltBall(i,col),col);
+        }
+        i++;
+    }
+    if(trunc(rot/40)%2==0){
+        let d=0;while(d<2){let x=rand(40,SCREEN_W-40);ShootAt(x,-10,90,1.5,ColBallSS(trunc(rand(0,8))));d++;}
+    }
+}
+
+// ================================================
+// ディスパッチ
+// ================================================
+function Atk(aid,col,rot){
+    let bx=ObjMove_GetX(objBoss);let by=ObjMove_GetY(objBoss);
+    if(aid==1){A1(bx,by,col,rot);}
+    else if(aid==2){A2(bx,by,col,rot);}
+    else if(aid==3){A3(bx,by,col,rot);}
+    else if(aid==4){A4(bx,by,col,rot);}
+    else if(aid==5){A5(bx,by,col,rot);}
+    else if(aid==6){A6(bx,by,col,rot);}
+    else if(aid==7){A7(bx,by,col,rot);}
+    else if(aid==8){A8(bx,by,col,rot);}
+    else if(aid==9){A9(bx,by,col,rot);}
+    else if(aid==10){A10(bx,by,col,rot);}
+    else if(aid==11){A11(bx,by,col,rot);}
+    else if(aid==12){A12(bx,by,col,rot);}
+    else if(aid==13){A13(bx,by,col,rot);}
+    else if(aid==14){A14(bx,by,col,rot);}
+    else if(aid==15){A15(bx,by,col,rot);}
+    else{A16(bx,by,col,rot);}
+    return 0;
+}
+
+function Flash(aid){
+    let bx=ObjMove_GetX(objBoss);let by=ObjMove_GetY(objBoss);
+    let i=0;while(i<16){
+        let o=CreateShotA1(bx,by,2.6,i*22.5,ColBallSS(aid),5);
+        ObjShot_SetSpellResist(o,true);
+        ObjRender_SetBlendType(o,BLEND_ADD_ARGB);
+        i++;
+    }
+    return 0;
+}
+
+// ================================================
+// 攻撃ループ
+// ================================================
+task TRun(aid,loops){
+    gArm=[];let g=0;while(g<10){gArm=gArm~[0.0];g++;}
+    gSpin=1.0;if(aid%2==0){gSpin=-1.0;}
+
+    let waveIntA =[0, 10,14,16,8,12,12,9,14, 9,12,14,12,9,10,12,9];
+    let rotStepA =[0, 6.0,9.0,8.0,7.0,8.0,7.0,5.0,11.0, 8.0,9.0,10.0,7.0,6.0,9.0,8.0,6.0];
+    let loopFrA  =[0, 110,120,120,120,120,120,120,120, 120,120,120,120,120,120,120,130];
+    let driftKA  =[0, 0.0,0.0,0.0,0.0,8.0,0.0,14.0,0.0, 6.0,0.0,0.0,0.0,0.0,0.0,8.0,8.0];
+
+    let waveInt=waveIntA[aid];let rotStep=rotStepA[aid]*gSpin;
+    let loopFrames=loopFrA[aid];let driftK=driftKA[aid];
+
+    let L=0;
+    while(L<loops && !Obj_IsDeleted(objBoss)){
+        gCol=clampf(L/((loops-1)*1.0),0,1);
+        Flash(aid);
+        let t=0;
+        while(t<loopFrames && !Obj_IsDeleted(objBoss)){
+            if(t%waveInt==0){
                 let i=0;
-                while(i<4){
-                    let a=spin+i*90+sin(i*90+dec*60)*dec*22;
-                    CreateShotA1(cx,cy,2.2,a,mB,5);
+                while(i<length(gArm)){
+                    gArm[i]=gArm[i]*0.92+rand(-1,1)*gCol*driftK;
                     i++;
                 }
-                spin+=10;
-                dec=DecayStep(dec,0.05,1.0);
+                Atk(aid,gCol,gRot);
+                gRot=gRot+rotStep;
             }
-        } else if(phase==3){
-            // 等速で広がる二重リング。ループごとに歪んでモアレが崩壊する
-            if(t%50==0){
-                FireRingDecay(cx,cy,14,spin,2.0,mB,8,dec);
-                spin+=8;
-                dec=DecayStep(dec,0.14,1.0);
-            }
-            if(t%50==25){
-                FireRingDecay(cx,cy,14,-spin+10,2.2,sB,8,dec);
-            }
-        } else if(phase==4){
-            // 五弁の花。最初は均等な曲線、ループごとに開く角度がばらつき形が崩れる
-            if(t%48==0){
-                let i=0;
-                while(i<5){
-                    let a=spin+i*72+sin(i*72+dec*50)*dec*20;
-                    let turn=0.6+sin(i*40)*dec*0.4;
-                    TCurveBullet(cx,cy,2.0,a,mB,turn,250);
-                    i++;
-                }
-                spin+=16;
-                dec=DecayStep(dec,0.12,1.0);
-            }
-        } else if(phase==5){
-            // 隙間が1つ空いた整然リング。ループごとに隙間が増殖・位置が乱れ崩れる
-            if(t%46==0){
-                let n=18;let i=0;
-                while(i<n){
-                    let a=i*(360/n)+spin;
-                    let gap1=t*2.0;
-                    let gap2=t*2.0+140+sin(dec*30)*60;
-                    let skip=(angDiff(a,gap1)<22);
-                    if(dec>0.4 && angDiff(a,gap2)<22*dec){skip=true;}
-                    if(!skip){
-                        let aa=a+sin(i*47+dec*40)*dec*10;
-                        CreateShotA1(cx,cy,2.1,aa,mB,8);
-                    }
-                    i++;
-                }
-                spin+=9;
-                dec=DecayStep(dec,0.1,1.0);
-            }
-            if(t%26==0){
-                let ba=GetAngleToPlayer(objBoss);
-                CreateShotA1(cx,cy,3.2,ba,nC,6);
-            }
-        } else if(phase==6){
-            // 放射→停止→再加速。最初は綺麗に折れるが、ループごとに折れ角がばらけ崩れる
-            if(t%96==0){
-                let n=12;let i=0;
-                while(i<n){
-                    let a=i*(360/n)+spin;
-                    let bend=18+sin(i*60+dec*50)*dec*60;
-                    TStopGoBullet(cx,cy,2.6,a,mB,30,30,a+bend,2.8,220);
-                    i++;
-                }
-                spin+=12;
-                dec=DecayStep(dec,0.18,1.0);
-            }
-            if(t%36==0){
-                let ba=GetAngleToPlayer(objBoss);
-                FireNway(cx,cy,2,ba,16,2.4,sB,6);
-            }
-        } else if(phase==7){
-            // 整った対の螺旋。ループごとに片側がずれて螺旋が崩れていく
-            if(t%9==0){
-                let off=sin(dec*40)*dec*30;
-                CreateShotA1(cx,cy,2.2,spin,mB,5);
-                CreateShotA1(cx,cy,2.2,spin+180+off,sB,5);
-                spin+=10;
-                dec=DecayStep(dec,0.03,1.0);
-            }
-        } else {
-            // 終: 全パターンが少しずつ崩れる総力戦
-            if(t%18==0){
-                let i=0;
-                while(i<3){
-                    let a=spin+i*120+sin(i*120+dec*50)*dec*18;
-                    CreateShotA1(cx,cy,2.2,a,mB,5);
-                    i++;
-                }
-                spin+=13;
-                dec=DecayStep(dec,0.05,1.0);
-            }
-            if(t%60==0){FireRingDecay(cx,cy,18,-spin,2.0,sB,8,dec);}
-            if(t%24==0){
-                let ba=GetAngleToPlayer(objBoss);
-                FireNwayDecay(cx,cy,3,ba,18,3.0,rC,6,dec*0.5);
-            }
+            t++;yield;
         }
-        t++;yield;
+        L++;
     }
+    gCol=0.0;
+    gDone=1;
 }
 
 // ================================================
-// 8フェーズの間奏スペル  テーマ「崩れ」
-// どれも整然とした配置/動きから始まり、ループごとに崩れていく。
+// ボスの見た目
 // ================================================
-
-// P1: 等間隔の全方位リング。撒くたびに角度と速度が乱れて崩れる
-task TSpell1(){
-    let t=0;let mB=BallM(1);let sB=BallS(1);
-    let dec=0;let rot=0;
-    while(t<360 && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%40==0){
-            FireRingDecay(cx,cy,18,rot,2.0,mB,8,dec);
-            rot+=7;
-            dec=DecayStep(dec,0.13,1.0);
-        }
-        if(t%80==0){
-            let ba=GetAngleToPlayer(objBoss);
-            FireNway(cx,cy,3,ba,18,2.6,sB,6);
-        }
-        t++;yield;
+task TAura(){
+    let n=10;let orbs=[];let i=0;
+    while(i<n){
+        let o=ObjShot_Create(OBJ_SHOT);
+        ObjShot_SetGraphic(o,ColBallSS(gPhase));
+        ObjShot_SetIntersectionEnable(o,false);
+        ObjShot_SetSpellResist(o,true);
+        ObjShot_SetAutoDelete(o,false);
+        ObjMove_SetSpeed(o,0);
+        ObjRender_SetBlendType(o,BLEND_ADD_ARGB);
+        ObjShot_Regist(o);
+        orbs=orbs~[o];i++;
     }
-}
-
-// P2: 整った二重リング。歪みが蓄積してモアレが崩壊する
-task TSpell2(){
-    let t=0;let mB=BallM(2);let sB=BallS(2);
-    let rot=0;let dec=0;
-    while(t<360 && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%56==0){
-            FireRingDecay(cx,cy,16,rot,2.0,mB,8,dec);
-            rot+=12;
-            dec=DecayStep(dec,0.12,1.0);
-        }
-        if(t%56==28){FireRingDecay(cx,cy,16,-rot+10,2.2,sB,8,dec);}
-        t++;yield;
-    }
-}
-
-// P3: 回転する三方向弾。最初は綺麗な三角、ループごとに対称が崩れる
-task TSpell3(){
-    let t=0;let mB=BallM(3);let sB=BallSS(3);
-    let rot=0;let dec=0;
-    while(t<350 && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%16==0){
-            let i=0;
-            while(i<3){
-                let a=rot+i*120+sin(i*120+dec*50)*dec*24;
-                CreateShotA1(cx,cy,2.2,a,mB,6);
-                i++;
-            }
-            rot+=8;
-            dec=DecayStep(dec,0.07,1.0);
-        }
-        if(t%48==0){
-            let i=0;
-            while(i<3){
-                let a=-rot+i*120+60+sin(i*77+dec*40)*dec*24;
-                CreateShotA1(cx,cy,2.2,a,sB,6);
-                i++;
-            }
-        }
-        t++;yield;
-    }
-}
-
-// P4: 等間隔に周回する振子弾。ループごとに周回半径と角速度がばらけ環が崩れる
-task TSpell4(){
-    let t=0;let mB=BallM(4);let sB=BallS(4);
-    let dec=0;
-    while(t<350 && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%48==0){
-            let i=0;
-            while(i<5){
-                let r=40+i*8+sin(i*50+dec*40)*dec*22;
-                let sp=2.0+sin(i*33)*dec*1.0;
-                TPendulumBullet(cx,cy,mB,r,i*72,sp,200);
-                i++;
-            }
-            dec=DecayStep(dec,0.14,1.0);
-        }
-        if(t%70==0){
-            let ba=GetAngleToPlayer(objBoss);
-            FireNway(cx,cy,5,ba,40,2.6,sB,8);
-        }
-        t++;yield;
-    }
-}
-
-// P5: 整然と降る雨。ループごとに落下角がばらつき、整列が崩れる
-task TSpell5(){
-    let t=0;let mB=BallM(5);let rC=RiceCol(5);
-    let dec=0;let col=0;
-    while(t<350 && !Obj_IsDeleted(objBoss)){
-        if(t%8==0){
-            // 最初は等間隔の格子状、崩れるほど位置と角度がずれる
-            let x=20+col*40+sin(col*30+dec*40)*dec*30;
-            let ang=90+sin(col*47+dec*60)*dec*22;
-            TWallBullet(0,x,2.4,ang,mB,210);
-            col++;if(col>=9){col=0;dec=DecayStep(dec,0.12,1.0);}
-        }
-        if(t%50==0){
-            let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-            let ba=GetAngleToPlayer(objBoss);
-            let i=0;while(i<4){CreateShotA1(cx,cy,2.6,ba+i*90,rC,6);i++;}
-        }
-        t++;yield;
-    }
-}
-
-// P6: 放射→停止→折れて再加速。最初は綺麗に折れ、ループごとに折れ角が崩れる
-task TSpell6(){
-    let t=0;let mB=BallM(6);let sB=BallS(6);
-    let dec=0;
-    while(t<350 && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%90==0){
-            let n=10;let i=0;
-            while(i<n){
-                let a=i*(360/n)+t;
-                let bend=90+sin(i*60+dec*50)*dec*70;
-                TStopGoBullet(cx,cy,2.6,a,mB,28,32,a+bend,2.6,220);
-                i++;
-            }
-            dec=DecayStep(dec,0.2,1.0);
-        }
-        if(t%30==0){
-            let ba=GetAngleToPlayer(objBoss);
-            CreateShotA1(cx,cy,2.4,ba,sB,6);
-        }
-        t++;yield;
-    }
-}
-
-// P7: 整った二重螺旋。片側のずれが蓄積して螺旋が崩れる
-task TSpell7(){
-    let t=0;let mB=BallM(7);let sB=BallS(7);
-    let dec=0;
-    while(t<350 && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%14==0){
-            let a=t*5;
-            let off=sin(dec*40)*dec*40;
-            TCurveBullet(cx,cy,2.0,a,mB,1.2,240);
-            TCurveBullet(cx,cy,2.0,a+180+off,sB,1.2+dec*0.5,240);
-            dec=DecayStep(dec,0.05,1.0);
-        }
-        t++;yield;
-    }
-}
-
-// P8: 四隅・降雨・回転リングの整然合奏が、ループごとに全部崩れていく総力戦
-task TSpell8(){
-    let t=0;let mB=BallM(8);let sB=BallSS(8);let rC=RiceCol(8);
-    let corners=[[10,10],[374,10],[10,438],[374,438]];
-    let rot=0;let dec=0;
-    while(t<420 && !Obj_IsDeleted(objBoss)){
-        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
-        if(t%50==0){
-            let i=0;
-            while(i<4){
-                let cor=corners[i];
-                let ang=atan2(cy-cor[1],cx-cor[0]);
-                FireNwayDecay(cor[0],cor[1],3,ang,18,2.2,mB,8,dec);
-                i++;
-            }
-            dec=DecayStep(dec,0.1,1.0);
-        }
-        if(t%12==0){
-            let x=rand(10,374);
-            let ang=90+sin(t*0.3+dec*40)*dec*20;
-            TWallBullet(0,x,2.2,ang,sB,200);
-        }
-        if(t%34==0){FireRingDecay(cx,cy,16,rot,2.0,mB,8,dec);rot+=12;}
-        if(t%40==0){
-            let ba=GetAngleToPlayer(objBoss);
-            FireNwayDecay(cx,cy,5,ba,30,3.4,rC,6,dec*0.5);
-        }
-        t++;yield;
-    }
-}
-
-function RunInterludeSpell(phase){
-    if(phase==1){TSpell1();}
-    else if(phase==2){TSpell2();}
-    else if(phase==3){TSpell3();}
-    else if(phase==4){TSpell4();}
-    else if(phase==5){TSpell5();}
-    else if(phase==6){TSpell6();}
-    else if(phase==7){TSpell7();}
-    else{TSpell8();}
-}
-
-// ================================================
-// フェーズメインループ (図形の回転を反映)
-// ================================================
-task TPhaseLoop(phase){
-    let sh=GetShape(phase);
-    let verts=sh[0];let edges=sh[1];
-    let pers=RotPersonality(phase);
-
-    TStaticShape(verts,edges,phase,80);
-    TLauncher(phase);
-
     let t=0;
-    while(gPhase==phase && !Obj_IsDeleted(objBoss)){
-        let wobble=pers[3]*sin(t*pers[4]);
-        gAx+=pers[0]*0.5+wobble*0.4;
-        gAy+=pers[1]*0.5+wobble*0.3;
-        gAz+=pers[2]*0.5+wobble*0.5;
+    while(gPhase>0 && !Obj_IsDeleted(objBoss)){
+        let cx=ObjMove_GetX(objBoss);let cy=ObjMove_GetY(objBoss);
+        let r=22+4*sin(t*3);
+        i=0;
+        while(i<n){
+            let a=i*(360.0/n)+t*1.5;
+            ObjMove_SetPosition(orbs[i],cx+cos(a)*r,cy+sin(a)*r);
+            i++;
+        }
         t++;yield;
     }
+    i=0;while(i<n){Obj_Delete(orbs[i]);i++;}
 }
 
-function ClearAndInterlude(phase){
-    DeleteShotAll(TYPE_ALL,TYPE_ITEM);
-    ObjMove_SetDestAtFrame(objBoss,CX,CY,50);
-    wait(54);
-    RunInterludeSpell(phase);
-    wait(360);
-    DeleteShotAll(TYPE_SHOT,TYPE_ITEM);
-    wait(40);
+task TBossMove(){
+    let t=0;
+    while(!Obj_IsDeleted(objBoss)){
+        if(gPhase>0){
+            let dx=BX+sin(t*40)*60;
+            ObjMove_SetDestAtFrame(objBoss,dx,BY,180);
+            t++;
+        }
+        wait(180);
+    }
 }
 
 task TAnnounce(txt){
     let obj=ObjText_Create();
     ObjText_SetText(obj,txt);
-    ObjText_SetFontSize(obj,17);
+    ObjText_SetFontSize(obj,18);
     ObjText_SetFontBold(obj,true);
     ObjText_SetFontColorTop(obj,255,255,255);
-    ObjText_SetFontColorBottom(obj,200,220,255);
+    ObjText_SetFontColorBottom(obj,180,200,255);
     ObjText_SetFontBorderWidth(obj,2);
     ObjText_SetFontBorderColor(obj,10,10,20);
     ObjText_SetHorizontalAlignment(obj,ALIGNMENT_CENTER);
     ObjText_SetMaxWidth(obj,384);
-    ObjRender_SetX(obj,0);ObjRender_SetY(obj,18);
+    ObjRender_SetX(obj,0);ObjRender_SetY(obj,20);
     let a=0;
     while(a<255 && !Obj_IsDeleted(objBoss)){a+=15;ObjRender_SetAlpha(obj,a);yield;}
     wait(100);
@@ -849,42 +430,40 @@ task TAnnounce(txt){
     Obj_Delete(obj);
 }
 
-task TBossMove(){
-    let t=0;
-    while(!Obj_IsDeleted(objBoss)){
-        if(gPhase>0){
-            let dx=CX+cos(t*0.8)*rand(30,80);
-            let dy=CY+sin(t*1.1)*rand(15,50);
-            if(gPhase==8){dx=CX;dy=CY;}
-            ObjMove_SetDestAtFrame(objBoss,dx,dy,90);
-            t++;
-        }
-        wait(140);
-    }
-}
-
-task TMain(){
-    ObjMove_SetDestAtFrame(objBoss,CX,CY,60);
-    wait(60);
-    TBossMove();
-    while(!Obj_IsDeleted(objBoss)){
-        let p=1;
-        while(p<=8 && !Obj_IsDeleted(objBoss)){
-            RunPhase(p);p++;
-        }
-    }
+function RunAtk(aid){
+    if(Obj_IsDeleted(objBoss)){return;}
+    gCol=0.0;
+    TAnnounce(AtkName(aid));
+    gDone=0;
+    TRun(aid,5);
+    while(gDone==0 && !Obj_IsDeleted(objBoss)){yield;}
+    wait(24);
+    DeleteShotAll(TYPE_ALL,TYPE_ITEM);
+    ObjMove_SetDestAtFrame(objBoss,BX,BY,36);
+    wait(42);
 }
 
 function RunPhase(phase){
     if(Obj_IsDeleted(objBoss)){return;}
     gPhase=phase;
-    gAx=phase*19;gAy=phase*31;gAz=phase*43;
-    TAnnounce(PhaseName(phase));
-    TPhaseLoop(phase);
-    wait(PHASE_LIFE);
+    TAura();
+    RunAtk(phase);
     if(Obj_IsDeleted(objBoss)){return;}
+    RunAtk(phase+8);
     gPhase=0;
-    ClearAndInterlude(phase);
+    wait(30);
+    DeleteShotAll(TYPE_SHOT,TYPE_ITEM);
+    wait(20);
+}
+
+task TMain(){
+    ObjMove_SetDestAtFrame(objBoss,BX,BY,60);
+    wait(60);
+    TBossMove();
+    while(!Obj_IsDeleted(objBoss)){
+        let p=1;
+        while(p<=8 && !Obj_IsDeleted(objBoss)){RunPhase(p);p++;}
+    }
 }
 
 @Initialize{
@@ -892,17 +471,17 @@ function RunPhase(phase){
     objScene=GetEnemyBossSceneObjectID();
     objBoss=ObjEnemy_Create(OBJ_ENEMY_BOSS);
     ObjEnemy_Regist(objBoss);
-    ObjMove_SetPosition(objBoss,CX,-30);
-    ObjMove_SetDestAtFrame(objBoss,CX,CY,60);
+    ObjMove_SetPosition(objBoss,BX,-30);
+    ObjMove_SetDestAtFrame(objBoss,BX,BY,60);
     ObjEnemyBossScene_Add(objScene,0,objBoss);
     ObjEnemy_SetDamageRate(objBoss,0,0);
     LoadEnemyShotData(GetModuleDirectory()~"script/default_system/Default_ShotData.txt");
     ObjPrim_SetTexture(objBoss,"script/default_system/img/Default_Shot.png");
     ObjSprite2D_SetSourceRect(objBoss,0,0,12,12);
     ObjSprite2D_SetDestCenter(objBoss);
-    ObjRender_SetScaleXYZ(objBoss,3.5,3.5,1);
-    ObjRender_SetColor(objBoss,240,230,255);
-    SetShotAutoDeleteClip(100,100,100,100);
+    ObjRender_SetScaleXYZ(objBoss,3.0,3.0,1);
+    ObjRender_SetColor(objBoss,230,245,255);
+    SetShotAutoDeleteClip(80,80,80,80);
     TMain();
 }
 
@@ -916,11 +495,11 @@ function RunPhase(phase){
 @MainLoop{
     let bx=ObjMove_GetX(objBoss);
     let by=ObjMove_GetY(objBoss);
-    let sc=3.5+0.25*sin(gFrame*5);
-    ObjEnemy_SetIntersectionCircleToShot(objBoss,bx,by,30);
-    ObjEnemy_SetIntersectionCircleToPlayer(objBoss,bx,by,22);
+    let sc=3.0+0.2*sin(gFrame*5);
+    ObjEnemy_SetIntersectionCircleToShot(objBoss,bx,by,26);
+    ObjEnemy_SetIntersectionCircleToPlayer(objBoss,bx,by,20);
     ObjRender_SetScaleXYZ(objBoss,sc,sc,1);
-    ObjRender_SetAngleZ(objBoss,gFrame*3);
+    ObjRender_SetAngleZ(objBoss,gFrame*2);
     gFrame++;yield;
 }
 

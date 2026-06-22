@@ -1,0 +1,1098 @@
+#TouhouDanmakufu[Single]
+#ScriptVersion[3]
+#Title["Eightfold Geometry Spectrum - Brushed"]
+#Text["Polished 3D wireframe spell: cleaner phases, warning gates, depth contrast, and prism accents."]
+
+#include "script/default_system/Default_ShotConst.txt"
+
+let objBoss;
+let objScene;
+let globalPhaseID = 0;
+let globalAx = 0;
+let globalAy = 0;
+let globalAz = 0;
+let frameCounter = 0;
+
+let BOSS_X = 192;
+let BOSS_Y = 120;
+let PHASE_FRAMES = 690;
+
+function wait(frames) {
+    let i = 0;
+    while (i < frames) {
+        yield;
+        i++;
+    }
+}
+
+function get_3d_scale(z) {
+    let focal = 450.0;
+    if (z <= -focal) {
+        return 0.01;
+    }
+    let scale = focal / (focal + z);
+    if (scale > 2.4) {
+        return 2.4;
+    }
+    if (scale < 0.32) {
+        return 0.32;
+    }
+    return scale;
+}
+
+function is_safe_depth(z) {
+    return z > -255;
+}
+
+function rotate_3d(x, y, z, ax, ay, az) {
+    let sx = sin(ax); let cx = cos(ax);
+    let sy = sin(ay); let cy = cos(ay);
+    let sz = sin(az); let cz = cos(az);
+
+    let y1 = y * cx - z * sx;
+    let z1 = y * sx + z * cx;
+    let x2 = x * cy + z1 * sy;
+    let z2 = -x * sy + z1 * cy;
+    let x3 = x2 * cz - y1 * sz;
+    let y3 = x2 * sz + y1 * cz;
+
+    return [x3, y3, z2];
+}
+
+task TPlayTransitionSound() {
+    let objSE = ObjSound_Create();
+    ObjSound_Load(objSE, GetModuleDirectory() ~ "script/default_system/se/bonus.wav");
+    ObjSound_SetSoundDivision(objSE, SOUND_SE);
+    ObjSound_SetVolumeRate(objSE, 80);
+    ObjSound_Play(objSE);
+    wait(120);
+    if (!Obj_IsDeleted(objSE)) {
+        Obj_Delete(objSE);
+    }
+}
+
+function ClearCurrentPhase(phase, color) {
+    DeleteShotAll(TYPE_ALL, TYPE_ITEM);
+    ObjMove_SetDestAtFrame(objBoss, BOSS_X, BOSS_Y, 54);
+    TPlayTransitionSound();
+    TInterludeDanmaku(phase, color);
+    wait(260);
+    DeleteShotAll(TYPE_SHOT, TYPE_ITEM);
+}
+
+task TInterludeDanmaku(phase, color) {
+    let accent = GetPhaseAccentColor(phase);
+    TInterludeAimedLayer(phase, color, accent);
+    if (phase == 1) { TInterludeFlameBurst(color, accent); }
+    else if (phase == 2) { TInterludeVortexSpiral(color, accent); }
+    else if (phase == 3) { TInterludeLightningZigzag(color, accent); }
+    else if (phase == 4) { TInterludeVineGrowth(color, accent); }
+    else if (phase == 5) { TInterludeCloudDrift(color, accent); }
+    else if (phase == 6) { TInterludeIceShardRain(color, accent); }
+    else if (phase == 7) { TInterludeGalaxyPull(color, accent); }
+    else { TInterludeHaloPulse(color, accent); }
+}
+
+task TAimedShot(x, y, speed, angle, color, life) {
+    let shot = CreateShotA1(x, y, speed, angle, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        let depth = sin(t * 4);
+        ObjRender_SetAlpha(shot, 190 + depth * 60);
+        ObjRender_SetScaleXYZ(shot, 1.0 + depth * 0.15, 1.0 + depth * 0.15, 1);
+        t++;
+        yield;
+    }
+}
+
+task TAimedFan(cx, cy, color, count, spread, speed, life) {
+    let baseAngle = GetAngleToPlayer(objBoss);
+    let i = 0;
+    while (i < count) {
+        let offset = 0;
+        if (count > 1) {
+            offset = (i - (count - 1) / 2.0) * spread;
+        }
+        TAimedShot(cx, cy, speed, baseAngle + offset, color, life);
+        i++;
+    }
+}
+
+task TAimedRing(cx, cy, color, count, speed, life, rotOffset) {
+    let i = 0;
+    while (i < count) {
+        let angle = i * 360 / count + rotOffset;
+        TAimedShot(cx, cy, speed, angle, color, life);
+        i++;
+    }
+}
+
+task TInterludeAimedLayer(phase, color, accent) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    if (phase == 1) {
+        while (i < 9) {
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 5, 9, 2.6, 240);
+            i++;
+            wait(20);
+        }
+    } else if (phase == 2) {
+        while (i < 12) {
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 3, 14, 2.4, 230);
+            i++;
+            wait(15);
+        }
+    } else if (phase == 3) {
+        while (i < 8) {
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedRing(cx, cy, useColor, 10, 2.2, 240, i * 12);
+            i++;
+            wait(24);
+        }
+    } else if (phase == 4) {
+        while (i < 10) {
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 7, 7, 2.8, 230);
+            i++;
+            wait(18);
+        }
+    } else if (phase == 5) {
+        while (i < 9) {
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 4, 12, rand(220, 300) / 100.0, 250);
+            i++;
+            wait(20);
+        }
+    } else if (phase == 6) {
+        while (i < 11) {
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedRing(cx, cy, useColor, 8, 2.4, 230, i * 16);
+            i++;
+            wait(18);
+        }
+    } else if (phase == 7) {
+        while (i < 14) {
+            let useColor = color;
+            if (i % 2 == 1) { useColor = accent; }
+            TAimedFan(cx, cy, useColor, 1, 0, rand(240, 340) / 100.0, 220);
+            i++;
+            wait(13);
+        }
+    } else {
+        while (i < 12) {
+            TAimedRing(cx, cy, color, 12, 2.6, 240, i * 10);
+            TAimedFan(cx, cy, accent, 5, 8, 2.9, 230);
+            i++;
+            wait(16);
+        }
+    }
+}
+
+task TFlowShot(x, y, speed, baseAngle, color, curveAmp, life) {
+    let shot = CreateShotA1(x, y, speed, baseAngle, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        let depth = sin(t * 4);
+        let scale = 1.0 + depth * 0.5;
+        ObjRender_SetScaleXYZ(shot, scale, scale, 1);
+        ObjRender_SetAlpha(shot, 140 + depth * 110);
+        ObjMove_SetAngle(shot, ObjMove_GetAngle(shot) + curveAmp * cos(t * 1.5));
+        t++;
+        yield;
+    }
+}
+
+task TSpiralShot(x, y, baseAngle, color, dir, life) {
+    let shot = CreateShotA1(x, y, 0.6, baseAngle, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        ObjMove_SetSpeed(shot, 0.6 + t * 0.035);
+        ObjMove_SetAngle(shot, ObjMove_GetAngle(shot) + dir * (4.0 - t * 0.018));
+        let depth = sin(t * 5);
+        ObjRender_SetAlpha(shot, 150 + depth * 100);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.35, 1 + depth * 0.35, 1);
+        t++;
+        yield;
+    }
+}
+
+task TOrbitReleaseShot(cx, cy, radius, startAngle, angularSpeed, color, orbitFrames, life) {
+    let angle = startAngle;
+    let shot = CreateShotA1(cx + radius * cos(angle), cy + radius * sin(angle), 0, 0, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < orbitFrames) {
+        angle += angularSpeed;
+        ObjMove_SetPosition(shot, cx + radius * cos(angle), cy + radius * sin(angle));
+        let depth = sin(t * 6);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.4, 1 + depth * 0.4, 1);
+        ObjRender_SetAlpha(shot, 160 + depth * 90);
+        t++;
+        yield;
+    }
+    ObjMove_SetAngle(shot, angle);
+    ObjMove_SetSpeed(shot, 2.2);
+    ObjMove_SetAcceleration(shot, 0.015);
+    t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        let depth = sin(t * 4);
+        ObjRender_SetAlpha(shot, 150 + depth * 100);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.3, 1 + depth * 0.3, 1);
+        t++;
+        yield;
+    }
+}
+
+task TWaveShot(x, y, vx, vy, color, freq, amp, life) {
+    let shot = CreateShotA1(x, y, 0, 0, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    let baseX = x;
+    let baseY = y;
+    let norm = ((vx * vx + vy * vy) ^ 0.5);
+    let nx = 0;
+    let ny = 0;
+    if (norm > 0) {
+        nx = -vy / norm;
+        ny = vx / norm;
+    }
+    while (!Obj_IsDeleted(shot) && t < life) {
+        baseX += vx;
+        baseY += vy;
+        let offset = sin(t * freq) * amp;
+        ObjMove_SetPosition(shot, baseX + nx * offset, baseY + ny * offset);
+        let depth = cos(t * 4);
+        ObjRender_SetAlpha(shot, 140 + depth * 110);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.4, 1 + depth * 0.4, 1);
+        t++;
+        yield;
+    }
+}
+
+task TZigzagShot(x, y, speed, baseAngle, color, life) {
+    let shot = CreateShotA1(x, y, speed, baseAngle, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    let dir = 1;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        if (t % 12 == 0) {
+            ObjMove_SetAngle(shot, ObjMove_GetAngle(shot) + dir * 50);
+            dir = -dir;
+        }
+        let depth = sin(t * 6);
+        ObjRender_SetAlpha(shot, 180 + depth * 70);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.25, 1 + depth * 0.25, 1);
+        t++;
+        yield;
+    }
+}
+
+task TRainShot(x, y, color, life) {
+    let shot = CreateShotA1(x, y, 2.0, 90, color, 24);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    let t = 0;
+    while (!Obj_IsDeleted(shot) && t < life) {
+        ObjMove_SetAngle(shot, 90 + 12 * sin(t * 3));
+        let depth = sin(t * 5);
+        ObjRender_SetAlpha(shot, 170 + depth * 80);
+        ObjRender_SetScaleXYZ(shot, 1 + depth * 0.3, 1 + depth * 0.3, 1);
+        t++;
+        yield;
+    }
+}
+
+task TInterludeFlameBurst(color, accent) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let wave = 0;
+    while (wave < 5) {
+        let useColor = color;
+        if (wave % 2 == 1) { useColor = accent; }
+        let arms = 10;
+        let i = 0;
+        while (i < arms) {
+            let angle = i * 360 / arms + wave * 14;
+            TFlowShot(cx, cy, 1.8 + wave * 0.25, angle, useColor, 1.0, 170);
+            i++;
+        }
+        wave++;
+        wait(18);
+    }
+}
+
+task TInterludeVortexSpiral(color, accent) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 16) {
+        let useColor = color;
+        if (i % 2 == 1) { useColor = accent; }
+        let angle = i * 45;
+        let dir = 1;
+        if (i % 2 == 0) { dir = -1; }
+        TSpiralShot(cx, cy, angle, useColor, dir, 190);
+        i++;
+        wait(7);
+    }
+}
+
+task TInterludeLightningZigzag(color, accent) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 11) {
+        let useColor = color;
+        if (i % 2 == 1) { useColor = accent; }
+        let baseAngle = GetAngleToPlayer(objBoss) + rand(-30, 30);
+        TZigzagShot(cx, cy, 2.6, baseAngle, useColor, 190);
+        TZigzagShot(cx, cy, 2.6, baseAngle + 180, useColor, 190);
+        i++;
+        wait(12);
+    }
+}
+
+task TInterludeVineGrowth(color, accent) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 8) {
+        let baseAngle = i * 45;
+        TFlowShot(cx, cy, 1.3, baseAngle, color, 1.4, 200);
+        TFlowShot(cx, cy, 1.3, baseAngle + 22, accent, -1.4, 200);
+        TFlowShot(cx, cy, 1.3, baseAngle - 22, accent, 1.4, 200);
+        i++;
+        wait(14);
+    }
+}
+
+task TInterludeCloudDrift(color, accent) {
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 10) {
+        let useColor = color;
+        if (i % 2 == 1) { useColor = accent; }
+        TWaveShot(-20, cy - 100 + i * 22, 1.6, 0, useColor, 5, 50, 220);
+        TWaveShot(404, cy - 100 + i * 22, -1.6, 0, useColor, 5, 50, 220);
+        i++;
+        wait(9);
+    }
+}
+
+task TInterludeIceShardRain(color, accent) {
+    let i = 0;
+    while (i < 18) {
+        let useColor = color;
+        if (i % 2 == 1) { useColor = accent; }
+        let x = rand(10, 374);
+        TRainShot(x, -20, useColor, 220);
+        i++;
+        wait(9);
+    }
+}
+
+task TInterludeGalaxyPull(color, accent) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 8) {
+        let useColor = color;
+        if (i % 2 == 1) { useColor = accent; }
+        let angle = i * 45;
+        TOrbitReleaseShot(cx, cy, 50, angle, 5.0, useColor, 80, 140);
+        TOrbitReleaseShot(cx, cy, 80, angle + 22, -5.0, useColor, 80, 140);
+        i++;
+        wait(10);
+    }
+}
+
+task TInterludeHaloPulse(color, accent) {
+    let cx = ObjMove_GetX(objBoss);
+    let cy = ObjMove_GetY(objBoss);
+    let i = 0;
+    while (i < 9) {
+        let useColor = color;
+        if (i % 2 == 1) { useColor = accent; }
+        TAimedRing(cx, cy, useColor, 16, 2.0 + i * 0.15, 220, i * 11);
+        i++;
+        wait(18);
+    }
+}
+
+task TAnnounce(textStr, color) {
+    let objText = ObjText_Create();
+    ObjText_SetText(objText, textStr);
+    ObjText_SetFontSize(objText, 18);
+    ObjText_SetFontBold(objText, true);
+    ObjText_SetFontColorTop(objText, 255, 255, 255);
+    ObjText_SetFontColorBottom(objText, 210, 230, 255);
+    ObjText_SetFontBorderWidth(objText, 2);
+    ObjText_SetFontBorderColor(objText, 18, 16, 28);
+    ObjText_SetHorizontalAlignment(objText, ALIGNMENT_RIGHT);
+    ObjText_SetMaxWidth(objText, 370);
+    ObjRender_SetX(objText, 10);
+    ObjRender_SetY(objText, 20);
+
+    let alpha = 0;
+    while (alpha < 255 && !Obj_IsDeleted(objBoss)) {
+        alpha += 17;
+        ObjRender_SetAlpha(objText, alpha);
+        yield;
+    }
+    wait(112);
+    while (alpha > 0 && !Obj_IsDeleted(objBoss)) {
+        alpha -= 11;
+        ObjRender_SetAlpha(objText, alpha);
+        yield;
+    }
+    Obj_Delete(objText);
+}
+
+function get_flame_star() {
+    let v = []; let e = []; let n = 6;
+    let i = 0;
+    while (i < n) {
+        let a = i * 360 / n;
+        v = v ~ [[cos(a) * 1.6, sin(a) * 1.6, 0.3 * sin(a * 2)]];
+        i++;
+    }
+    i = 0;
+    while (i < n) {
+        let a = i * 360 / n + 180 / n;
+        v = v ~ [[cos(a) * 0.6, sin(a) * 0.6, -0.3 * sin(a * 2)]];
+        i++;
+    }
+    v = v ~ [[0, 0, 0]];
+    let center = 12;
+    i = 0;
+    while (i < n) {
+        let next = (i + 1) % n;
+        e = e ~ [[i, center]];
+        e = e ~ [[n + i, center]];
+        e = e ~ [[i, n + i]];
+        e = e ~ [[n + i, next]];
+        i++;
+    }
+    return [v, e];
+}
+
+function get_vortex_spiral() {
+    let v = []; let e = []; let n = 16; let turns = 1.5;
+    let i = 0;
+    while (i < n) {
+        let a = i * 360 * turns / (n - 1);
+        let r = 0.3 + 1.2 * i / (n - 1);
+        let z = -1 + 2 * i / (n - 1);
+        v = v ~ [[cos(a) * r, sin(a) * r, z]];
+        i++;
+    }
+    i = 0;
+    while (i < n - 1) {
+        e = e ~ [[i, i + 1]];
+        i++;
+    }
+    v = v ~ [[0, 0, -1.2]];
+    v = v ~ [[0, 0, 1.2]];
+    e = e ~ [[16, 0]];
+    e = e ~ [[15, 17]];
+    return [v, e];
+}
+
+function get_lightning_lattice() {
+    let path = [[-1,1.6,0],[1,1.0,0.3],[-1,0.4,-0.3],[1,-0.2,0.3],[-1,-0.8,-0.3],[1,-1.4,0.3],[-1,-2.0,0]];
+    let v = []; let e = []; let n = length(path);
+    let i = 0;
+    while (i < n) {
+        v = v ~ [[path[i][0] * 0.7, path[i][1] * 0.7, path[i][2] * 0.7]];
+        i++;
+    }
+    i = 0;
+    while (i < n) {
+        v = v ~ [[path[i][0] * 0.7 + 0.5, path[i][1] * 0.7, path[i][2] * 0.7 - 0.6]];
+        i++;
+    }
+    i = 0;
+    while (i < n - 1) {
+        e = e ~ [[i, i + 1]];
+        e = e ~ [[n + i, n + i + 1]];
+        i++;
+    }
+    i = 0;
+    while (i < n) {
+        e = e ~ [[i, n + i]];
+        i++;
+    }
+    return [v, e];
+}
+
+function get_vine_helix() {
+    let v = []; let e = []; let n = 12; let turns = 1.2;
+    let i = 0;
+    while (i < n) {
+        let a = i * 360 * turns / (n - 1);
+        let z = -1 + 2 * i / (n - 1);
+        v = v ~ [[cos(a) * 0.8, sin(a) * 0.8, z]];
+        i++;
+    }
+    i = 0;
+    while (i < n - 1) {
+        e = e ~ [[i, i + 1]];
+        i++;
+    }
+    i = 0;
+    while (i < n) {
+        if (i % 2 == 0) {
+            let a = i * 360 * turns / (n - 1);
+            let z = -1 + 2 * i / (n - 1);
+            v = v ~ [[cos(a) * 1.6, sin(a) * 1.6, z]];
+            e = e ~ [[i, n + length(v) - n - 1]];
+        }
+        i++;
+    }
+    return [v, e];
+}
+
+function get_cloud_ring() {
+    let v = []; let e = []; let div = 8; let r = 0.55;
+    let centers = [[0,0,0],[1.0,0.4,0.3],[-1.0,0.3,-0.3],[0.3,-0.9,0.2]];
+    let c = 0;
+    while (c < length(centers)) {
+        let base = length(v);
+        let i = 0;
+        while (i < div) {
+            let a = i * 360 / div;
+            v = v ~ [[centers[c][0] + cos(a) * r, centers[c][1] + sin(a) * r, centers[c][2]]];
+            i++;
+        }
+        i = 0;
+        while (i < div) {
+            let next = (i + 1) % div;
+            e = e ~ [[base + i, base + next]];
+            i++;
+        }
+        c++;
+    }
+    return [v, e];
+}
+
+function get_ice_crystal() {
+    let v = [[0, 0, 0]]; let e = []; let arms = 6;
+    let i = 0;
+    while (i < arms) {
+        let a = i * 360 / arms;
+        let tip = length(v);
+        v = v ~ [[cos(a) * 1.6, sin(a) * 1.6, 0]];
+        e = e ~ [[0, tip]];
+        let mid = length(v);
+        v = v ~ [[cos(a) * 0.9, sin(a) * 0.9, 0]];
+        e = e ~ [[0, mid]];
+        let a1 = a + 35;
+        v = v ~ [[cos(a1) * 0.9, sin(a1) * 0.9, 0.4]];
+        e = e ~ [[mid, length(v) - 1]];
+        let a2 = a - 35;
+        v = v ~ [[cos(a2) * 0.9, sin(a2) * 0.9, -0.4]];
+        e = e ~ [[mid, length(v) - 1]];
+        i++;
+    }
+    return [v, e];
+}
+
+function get_galaxy_spiral() {
+    let v = [[0, 0, 0]]; let e = []; let arm = 0;
+    while (arm < 2) {
+        let n = 10; let i = 0;
+        let first = -1;
+        while (i < n) {
+            let t = i / (n - 1);
+            let a = t * 300 + arm * 180;
+            let r = 0.3 + 1.3 * t;
+            let z = t * 0.6;
+            if (arm == 1) { z = -z; }
+            v = v ~ [[cos(a) * r, sin(a) * r, z]];
+            let idx = length(v) - 1;
+            if (first == -1) {
+                first = idx;
+                e = e ~ [[0, idx]];
+            } else {
+                e = e ~ [[idx - 1, idx]];
+            }
+            i++;
+        }
+        arm++;
+    }
+    return [v, e];
+}
+
+function get_halo_rings() {
+    let v = []; let e = []; let div = 12;
+    let radii = [0.6, 1.0, 1.4];
+    let tilts = [0, 30, -30];
+    let r = 0;
+    while (r < 3) {
+        let base = length(v);
+        let i = 0;
+        while (i < div) {
+            let a = i * 360 / div;
+            v = v ~ [[cos(a) * radii[r], sin(a) * radii[r] * cos(tilts[r]), sin(a) * radii[r] * sin(tilts[r])]];
+            i++;
+        }
+        i = 0;
+        while (i < div) {
+            let next = (i + 1) % div;
+            e = e ~ [[base + i, base + next]];
+            i++;
+        }
+        r++;
+    }
+    return [v, e];
+}
+
+function GetPhaseShape(phase) {
+    if (phase == 1) { return get_flame_star(); }
+    if (phase == 2) { return get_vortex_spiral(); }
+    if (phase == 3) { return get_lightning_lattice(); }
+    if (phase == 4) { return get_vine_helix(); }
+    if (phase == 5) { return get_cloud_ring(); }
+    if (phase == 6) { return get_ice_crystal(); }
+    if (phase == 7) { return get_galaxy_spiral(); }
+    return get_halo_rings();
+}
+
+function GetPhaseColor(phase) {
+    if (phase == 1) { return DS_BALL_SS_RED; }
+    if (phase == 2) { return DS_BALL_SS_ORANGE; }
+    if (phase == 3) { return DS_BALL_SS_YELLOW; }
+    if (phase == 4) { return DS_BALL_SS_GREEN; }
+    if (phase == 5) { return DS_BALL_SS_SKY; }
+    if (phase == 6) { return DS_BALL_SS_BLUE; }
+    if (phase == 7) { return DS_BALL_SS_PURPLE; }
+    return DS_BALL_SS_WHITE;
+}
+
+function GetPhaseAccentColor(phase) {
+    if (phase == 1) { return DS_BALL_SS_ORANGE; }
+    if (phase == 2) { return DS_BALL_SS_YELLOW; }
+    if (phase == 3) { return DS_BALL_SS_GREEN; }
+    if (phase == 4) { return DS_BALL_SS_SKY; }
+    if (phase == 5) { return DS_BALL_SS_BLUE; }
+    if (phase == 6) { return DS_BALL_SS_PURPLE; }
+    if (phase == 7) { return DS_BALL_SS_RED; }
+    return DS_BALL_SS_SKY;
+}
+
+function GetPhaseLaserColor(phase) {
+    if (phase == 1) { return DS_RICE_S_RED; }
+    if (phase == 2) { return DS_RICE_S_ORANGE; }
+    if (phase == 3) { return DS_RICE_S_YELLOW; }
+    if (phase == 4) { return DS_RICE_S_GREEN; }
+    if (phase == 5) { return DS_RICE_S_SKY; }
+    if (phase == 6) { return DS_RICE_S_BLUE; }
+    if (phase == 7) { return DS_RICE_S_PURPLE; }
+    return DS_RICE_S_WHITE;
+}
+
+function GetPhaseName(phase) {
+    if (phase == 1) { return "Crimson Flame Star / Flame Burst"; }
+    if (phase == 2) { return "Amber Vortex Spiral / Vortex Pull"; }
+    if (phase == 3) { return "Topaz Lightning Lattice / Zigzag Storm"; }
+    if (phase == 4) { return "Emerald Vine Helix / Vine Growth"; }
+    if (phase == 5) { return "Cyan Cloud Ring / Cloud Drift"; }
+    if (phase == 6) { return "Sapphire Ice Crystal / Shard Rain"; }
+    if (phase == 7) { return "Amethyst Galaxy Spiral / Galaxy Pull"; }
+    return "Halo Ring Mandala / Halo Pulse";
+}
+
+function GetPhaseRadius(phase) {
+    if (phase == 1) { return 88; }
+    if (phase == 2) { return 82; }
+    if (phase == 3) { return 64; }
+    if (phase == 4) { return 84; }
+    if (phase == 5) { return 105; }
+    if (phase == 6) { return 82; }
+    if (phase == 7) { return 74; }
+    return 100;
+}
+
+function GetWaveRadius(phase) {
+    if (phase == 1) { return 52; }
+    if (phase == 2) { return 50; }
+    if (phase == 3) { return 42; }
+    if (phase == 4) { return 52; }
+    if (phase == 5) { return 60; }
+    if (phase == 6) { return 50; }
+    if (phase == 7) { return 46; }
+    return 58;
+}
+
+function GetWaveInterval(phase) {
+    if (phase == 1) { return 46; }
+    if (phase == 2) { return 50; }
+    if (phase == 3) { return 40; }
+    if (phase == 4) { return 36; }
+    if (phase == 5) { return 42; }
+    if (phase == 6) { return 44; }
+    if (phase == 7) { return 50; }
+    return 58;
+}
+
+function GetMoveType(phase, t) {
+    if (phase == 1 || phase == 3 || phase == 8) {
+        return 0;
+    }
+    if (t % 2 == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+function CreateHiddenShot(color) {
+    let shot = CreateShotA1(-999, -999, 0, 0, color, 0);
+    ObjShot_SetIntersectionEnable(shot, false);
+    ObjShot_SetAutoDelete(shot, false);
+    ObjRender_SetBlendType(shot, BLEND_ADD_ARGB);
+    ObjRender_SetAlpha(shot, 0);
+    return shot;
+}
+
+function CreateHiddenLaser(graphicID) {
+    let laser = ObjShot_Create(OBJ_STRAIGHT_LASER);
+    ObjShot_SetGraphic(laser, graphicID);
+    ObjShot_SetAutoDelete(laser, false);
+    ObjShot_SetIntersectionEnable(laser, false);
+    ObjStLaser_SetSource(laser, false);
+    ObjRender_SetBlendType(laser, BLEND_ADD_ARGB);
+    ObjRender_SetAlpha(laser, 0);
+    ObjShot_Regist(laser);
+    return laser;
+}
+
+function DrawLaserEdge(obj, x1, y1, x2, y2, z, width, activeCollision) {
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let len = (dx * dx + dy * dy) ^ 0.5;
+
+    if (!is_safe_depth(z) || len < 1.5 || len > 420) {
+        ObjRender_SetAlpha(obj, 0);
+        ObjShot_SetIntersectionEnable(obj, false);
+        return;
+    }
+
+    let angle = atan2(dy, dx);
+    ObjMove_SetPosition(obj, x1, y1);
+    ObjStLaser_SetAngle(obj, angle);
+    ObjLaser_SetLength(obj, len);
+    ObjLaser_SetRenderWidth(obj, width);
+
+    if (z < 0) {
+        ObjRender_SetAlpha(obj, 235);
+        ObjShot_SetIntersectionEnable(obj, activeCollision);
+    } else {
+        ObjRender_SetAlpha(obj, 50);
+        ObjShot_SetIntersectionEnable(obj, false);
+    }
+}
+
+task TBulletWireframeStatic(vBase, eBase, color, phase, baseR) {
+    let laserColor = GetPhaseLaserColor(phase);
+    let edgeLasers = [];
+    let vertexShots = [];
+    let numEdges = length(eBase);
+    let i = 0;
+
+    while (i < numEdges) {
+        let laser = CreateHiddenLaser(laserColor);
+        edgeLasers = edgeLasers ~ [laser];
+        i++;
+    }
+
+    i = 0;
+    while (i < length(vBase)) {
+        let vertexShot = CreateHiddenShot(color);
+        vertexShots = vertexShots ~ [vertexShot];
+        i++;
+    }
+
+    let localFrame = 0;
+    while (globalPhaseID == phase && !Obj_IsDeleted(objBoss)) {
+        let cx = ObjMove_GetX(objBoss);
+        let cy = ObjMove_GetY(objBoss);
+        let pulse = 0.5 + 0.5 * sin(localFrame * 3);
+
+        i = 0;
+        while (i < length(vBase)) {
+            let vertex = vBase[i];
+            let p = rotate_3d(vertex[0] * baseR, vertex[1] * baseR, vertex[2] * baseR, globalAx, globalAy, globalAz);
+            let scale = get_3d_scale(p[2]);
+            let shot = vertexShots[i];
+            ObjMove_SetPosition(shot, cx + p[0] * scale, cy + p[1] * scale);
+            ObjRender_SetScaleXYZ(shot, 1.35 + pulse * 0.18, 1.35 + pulse * 0.18, 1);
+            if (p[2] > 0) {
+                ObjRender_SetAlpha(shot, 60 + pulse * 20);
+            } else {
+                ObjRender_SetAlpha(shot, 190 + pulse * 40);
+            }
+            i++;
+        }
+
+        i = 0;
+        while (i < numEdges) {
+            let v1 = vBase[eBase[i][0]];
+            let v2 = vBase[eBase[i][1]];
+            let p1 = rotate_3d(v1[0] * baseR, v1[1] * baseR, v1[2] * baseR, globalAx, globalAy, globalAz);
+            let p2 = rotate_3d(v2[0] * baseR, v2[1] * baseR, v2[2] * baseR, globalAx, globalAy, globalAz);
+            let scale1 = get_3d_scale(p1[2]);
+            let scale2 = get_3d_scale(p2[2]);
+            let sx1 = cx + p1[0] * scale1;
+            let sy1 = cy + p1[1] * scale1;
+            let sx2 = cx + p2[0] * scale2;
+            let sy2 = cy + p2[1] * scale2;
+            let edgeZ = (p1[2] + p2[2]) * 0.5;
+            DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, edgeZ, 7.5 + pulse * 2.2, false);
+            i++;
+        }
+        localFrame++;
+        yield;
+    }
+
+    i = 0;
+    while (i < length(edgeLasers)) {
+        Obj_Delete(edgeLasers[i]);
+        i++;
+    }
+
+    i = 0;
+    while (i < length(vertexShots)) {
+        Obj_Delete(vertexShots[i]);
+        i++;
+    }
+}
+
+task TGeometryWave(vBase, eBase, color, phase, baseR, moveType) {
+    let laserColor = GetPhaseLaserColor(phase);
+    let edgeLasers = [];
+    let vertexShots = [];
+    let numEdges = length(eBase);
+    let i = 0;
+
+    while (i < numEdges) {
+        let laser = CreateHiddenLaser(laserColor);
+        edgeLasers = edgeLasers ~ [laser];
+        i++;
+    }
+
+    i = 0;
+    while (i < length(vBase)) {
+        let vertexShot = CreateHiddenShot(color);
+        vertexShots = vertexShots ~ [vertexShot];
+        i++;
+    }
+
+    let originX = ObjMove_GetX(objBoss);
+    let originY = ObjMove_GetY(objBoss);
+
+    let ax = rand(0, 360);
+    let ay = rand(0, 360);
+    let az = rand(0, 360);
+
+    let destAngle = 0;
+    if (moveType == 0) {
+        destAngle = GetAngleToPlayer(objBoss);
+    } else {
+        destAngle = rand(0, 360);
+    }
+    let destR = rand(70, 130);
+    let destX = destR * cos(destAngle);
+    let destY = destR * sin(destAngle);
+
+    let life = 130;
+    let t = 0;
+    while (globalPhaseID == phase && t < life && !Obj_IsDeleted(objBoss)) {
+        let progress = t / life;
+        let bx = destX * progress;
+        let by = destY * progress;
+        ax += 3.2;
+        ay += 2.4;
+        az += 1.8;
+        let pulse = 0.6 + 0.4 * sin(t * 5);
+
+        i = 0;
+        while (i < length(vBase)) {
+            let vertex = vBase[i];
+            let p = rotate_3d(vertex[0] * baseR, vertex[1] * baseR, vertex[2] * baseR, ax, ay, az);
+            let shot = vertexShots[i];
+            ObjMove_SetPosition(shot, originX + p[0] + bx, originY + p[1] + by);
+            ObjRender_SetScaleXYZ(shot, 1.6, 1.6, 1);
+            ObjRender_SetAlpha(shot, 160 + pulse * 70);
+            i++;
+        }
+
+        i = 0;
+        while (i < numEdges) {
+            let v1 = vBase[eBase[i][0]];
+            let v2 = vBase[eBase[i][1]];
+            let p1 = rotate_3d(v1[0] * baseR, v1[1] * baseR, v1[2] * baseR, ax, ay, az);
+            let p2 = rotate_3d(v2[0] * baseR, v2[1] * baseR, v2[2] * baseR, ax, ay, az);
+            let sx1 = originX + p1[0] + bx;
+            let sy1 = originY + p1[1] + by;
+            let sx2 = originX + p2[0] + bx;
+            let sy2 = originY + p2[1] + by;
+            DrawLaserEdge(edgeLasers[i], sx1, sy1, sx2, sy2, -10, 7.0 + pulse * 1.5, true);
+            i++;
+        }
+        t++;
+        yield;
+    }
+
+    i = 0;
+    while (i < length(edgeLasers)) {
+        Obj_Delete(edgeLasers[i]);
+        i++;
+    }
+
+    i = 0;
+    while (i < length(vertexShots)) {
+        Obj_Delete(vertexShots[i]);
+        i++;
+    }
+}
+
+task TPattern_Generic(phase) {
+    let shape = GetPhaseShape(phase);
+    let color = GetPhaseColor(phase);
+    let accent = GetPhaseAccentColor(phase);
+    let radius = GetPhaseRadius(phase);
+    let waveRadius = GetWaveRadius(phase);
+
+    TBulletWireframeStatic(shape[0], shape[1], color, phase, radius);
+
+    let t = 0;
+    while (globalPhaseID == phase && !Obj_IsDeleted(objBoss)) {
+        globalAx += 1.0 + phase * 0.12 + 0.35 * sin(t * 2);
+        globalAy += 1.45 + phase * 0.10;
+        globalAz += 0.85 + phase * 0.08 + 0.2 * cos(t * 3);
+
+        if (t > 30 && t % GetWaveInterval(phase) == 0) {
+            TGeometryWave(shape[0], shape[1], color, phase, waveRadius, 0);
+            TGeometryWave(shape[0], shape[1], accent, phase, waveRadius, 1);
+        }
+
+        t++;
+        yield;
+    }
+}
+
+task TBossWander() {
+    let t = 0;
+    while (!Obj_IsDeleted(objBoss)) {
+        if (globalPhaseID > 0) {
+            let driftX = BOSS_X + cos(t * 67) * rand(34, 84);
+            let driftY = BOSS_Y + sin(t * 83) * rand(18, 54);
+            if (globalPhaseID == 8) {
+                driftX = BOSS_X;
+                driftY = BOSS_Y;
+            }
+            ObjMove_SetDestAtFrame(objBoss, driftX, driftY, 92);
+            t++;
+        }
+        wait(150);
+    }
+}
+
+task TMainSequence() {
+    ObjMove_SetDestAtFrame(objBoss, BOSS_X, BOSS_Y, 60);
+    wait(60);
+    TBossWander();
+
+    while (!Obj_IsDeleted(objBoss)) {
+        let phase = 1;
+        while (phase <= 8 && !Obj_IsDeleted(objBoss)) {
+            ExecutePhase(phase);
+            phase++;
+        }
+    }
+}
+
+function ExecutePhase(phase) {
+    if (Obj_IsDeleted(objBoss)) {
+        return;
+    }
+
+    globalPhaseID = phase;
+    globalAx = phase * 17;
+    globalAy = phase * 29;
+    globalAz = phase * 41;
+    TAnnounce(GetPhaseName(phase), GetPhaseColor(phase));
+    TPattern_Generic(phase);
+
+    wait(PHASE_FRAMES);
+    if (Obj_IsDeleted(objBoss)) {
+        return;
+    }
+
+    globalPhaseID = 0;
+    ClearCurrentPhase(phase, GetPhaseColor(phase));
+}
+
+function SetupBossSprite() {
+    ObjPrim_SetTexture(objBoss, "script/default_system/img/Default_Shot.png");
+    ObjSprite2D_SetSourceRect(objBoss, 0, 0, 12, 12);
+    ObjSprite2D_SetDestCenter(objBoss);
+    ObjRender_SetScaleXYZ(objBoss, 3.0, 3.0, 1);
+    ObjRender_SetColor(objBoss, 240, 230, 255);
+}
+
+@Initialize {
+    SetPlayerLife(8);
+    objScene = GetEnemyBossSceneObjectID();
+    objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+    ObjEnemy_Regist(objBoss);
+    ObjMove_SetPosition(objBoss, BOSS_X, -36);
+    ObjMove_SetDestAtFrame(objBoss, BOSS_X, BOSS_Y, 60);
+    ObjEnemyBossScene_Add(objScene, 0, objBoss);
+    ObjEnemy_SetDamageRate(objBoss, 0, 0);
+    LoadEnemyShotData(GetModuleDirectory() ~ "script/default_system/Default_ShotData.txt");
+    SetupBossSprite();
+    TMainSequence();
+}
+
+@Event {
+    let event = GetEventType();
+    if (event == EV_REQUEST_LIFE) {
+        SetScriptResult(10000);
+    } else if (event == EV_REQUEST_TIMER) {
+        SetScriptResult(999);
+    } else if (event == EV_REQUEST_SPELL_SCORE) {
+        SetScriptResult(30000000);
+    }
+}
+
+@MainLoop {
+    let bossX = ObjMove_GetX(objBoss);
+    let bossY = ObjMove_GetY(objBoss);
+    let scale = 3.0 + 0.22 * sin(frameCounter * 5);
+
+    ObjEnemy_SetIntersectionCircleToShot(objBoss, bossX, bossY, 32);
+    ObjEnemy_SetIntersectionCircleToPlayer(objBoss, bossX, bossY, 24);
+    ObjRender_SetScaleXYZ(objBoss, scale, scale, 1);
+    ObjRender_SetAngleZ(objBoss, frameCounter * 2.5);
+
+    frameCounter++;
+    yield;
+}
+
+@Finalize {
+    if (!Obj_IsDeleted(objBoss)) {
+        Obj_Delete(objBoss);
+    }
+}

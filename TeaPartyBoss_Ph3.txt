@@ -20,10 +20,11 @@ function AngleDiff(a, b) {
 
 //==================================================================
 // グローバル状態
-// 弾グラフィックは Default_ShotConst.txt で定義済みの DS_BALL_<サイズ>_<色>
-// （サイズ: SS/S/M/L、色: RED/ORANGE/YELLOW/GREEN/CYAN/PURPLE/GRAY）のみを使用。
-// 米粒・涙型・輪等の専用形状定数は環境差が大きいため、あえて使わず
-// 「玉」を基本形状として色とサイズと動きだけで各茶種を演出している。
+// 弾グラフィックは DS_BALL_S_GREEN / DS_BALL_M_GREEN / DS_BALL_S_YELLOW の
+// 3つだけを使用（実機テストでこの3つのみ存在が確認できたIDのため）。
+// お使いの script/default_system/Default_ShotConst.txt に他の色
+// （RED, ORANGE, CYAN, PURPLE, GRAY 等）が定義されていれば、該当箇所を
+// 置き換えることで茶種ごとの色分けを増やせます。
 //==================================================================
 let enemy;
 let baseX = 192;
@@ -52,7 +53,7 @@ let haloAngleOffset = 0;
 // エントリポイント
 //==================================================================
 @Initialize {
-    enemy = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+    enemy = ObjEnemy_Create(OBJ_ENEMY);
     ObjEnemy_Regist(enemy);
     ObjMove_SetX(enemy, baseX);
     ObjMove_SetY(enemy, baseY);
@@ -276,7 +277,7 @@ task Phase2_SpawnBubble(bx, by, angle, radius, isBig) {
         let a2 = ObjMove_GetAngle(sh);
         let s2 = ObjMove_GetSpeed(sh);
         Obj_Delete(sh);
-        let warn = CreateShotA1(sx, sy, s2, a2, DS_BALL_M_GRAY, 1);
+        let warn = CreateShotA1(sx, sy, s2, a2, DS_BALL_M_GREEN, 1);
         ObjMove_SetAngularVelocity(warn, av);
         Wait(20);
         if (Obj_IsDeleted(warn)) { return; }
@@ -327,8 +328,8 @@ task Phase3_RainTask() {
                 if (diagToggle > 0) { angle = 65; } else { angle = 115; }
             }
             let sh;
-            if (isBig) { sh = CreateShotA1(x, 10, 1, angle, DS_BALL_M_ORANGE, 60); }
-            else { sh = CreateShotA1(x, 10, 1, angle, DS_BALL_S_ORANGE, 60); }
+            if (isBig) { sh = CreateShotA1(x, 10, 1, angle, DS_BALL_M_GREEN, 60); }
+            else { sh = CreateShotA1(x, 10, 1, angle, DS_BALL_S_YELLOW, 60); }
             Phase3_DropTask(sh, isBig);
         }
         wavePos = wavePos + waveDir * 18;
@@ -354,7 +355,7 @@ task Phase3_DropTask(sh, isBig) {
             let sy = ObjMove_GetY(sh);
             ascent(i in 0..6) {
                 let a = 60 + i * 60;
-                let p = CreateShotA1(sx, sy, 1.4, a, DS_BALL_SS_ORANGE, 1);
+                let p = CreateShotA1(sx, sy, 1.4, a, DS_BALL_S_YELLOW, 1);
                 Phase3_FadeParticle(p);
             }
         }
@@ -365,8 +366,8 @@ task Phase3_DropTask(sh, isBig) {
         if (!Obj_IsDeleted(sh)) {
             let sx = ObjMove_GetX(sh);
             let sy = ObjMove_GetY(sh);
-            CreateShotA1(sx, sy, 0.8, 0, DS_BALL_SS_ORANGE, 10);
-            CreateShotA1(sx, sy, 0.8, 180, DS_BALL_SS_ORANGE, 10);
+            CreateShotA1(sx, sy, 0.8, 0, DS_BALL_S_YELLOW, 10);
+            CreateShotA1(sx, sy, 0.8, 180, DS_BALL_S_YELLOW, 10);
         }
     }
 }
@@ -417,16 +418,16 @@ task Phase4_BandTask(side) {
             hy = baseY + 90 + radius * 0.6 * sin(a);
         }
 
-        let sh = CreateShotA1(hx, hy, 1.6, 90 + side * 25, DS_BALL_S_CYAN, 1);
+        let sh = CreateShotA1(hx, hy, 1.6, 90 + side * 25, DS_BALL_S_GREEN, 1);
         Phase4_FadeChain(sh, 90);
 
         if (hpPercent <= 70 && (t % 40 < 1)) {
-            let sh2 = CreateShotA1(hx, hy, 1.6, 90 - side * 40, DS_BALL_S_CYAN, 1);
+            let sh2 = CreateShotA1(hx, hy, 1.6, 90 - side * 40, DS_BALL_S_GREEN, 1);
             Phase4_FadeChain(sh2, 60);
         }
 
         if (hpPercent <= 40 && (t % 90 < 1)) {
-            let big = CreateShotA1(GetPlayerX(), 20, 1.0, 90, DS_BALL_L_CYAN, 40);
+            let big = CreateShotA1(GetPlayerX(), 20, 1.0, 90, DS_BALL_M_GREEN, 40);
             Phase4_DragonHead(big);
         }
 
@@ -448,7 +449,7 @@ task Phase4_DragonHead(big) {
         let sx = ObjMove_GetX(big);
         let sy = ObjMove_GetY(big);
         ascent(i in 0..5) {
-            CreateShotA1(sx, sy - i * 10, 1.5, 90, DS_BALL_S_CYAN, 1);
+            CreateShotA1(sx, sy - i * 10, 1.5, 90, DS_BALL_S_GREEN, 1);
         }
     }
 }
@@ -492,7 +493,7 @@ task Phase5_EmberTask() {
             let startA = quadrant * 90;
             ascent(i in 0..5) {
                 let a = startA + i * 22;
-                let sh = CreateShotA1(bx + 70 * cos(a), by + 70 * sin(a), 1.4, a, DS_BALL_S_ORANGE, 1);
+                let sh = CreateShotA1(bx + 70 * cos(a), by + 70 * sin(a), 1.4, a, DS_BALL_S_YELLOW, 1);
                 Phase5_EmberBehavior(sh);
             }
             quadrant = (quadrant + 1) % 4;
@@ -501,7 +502,7 @@ task Phase5_EmberTask() {
             flowAngle = flowAngle + 6;
             ascent(i in 0..10) {
                 let a = flowAngle + i * 36;
-                CreateShotA1(bx + 70 * cos(a), by + 70 * sin(a), 2.6, a, DS_BALL_S_RED, 1);
+                CreateShotA1(bx + 70 * cos(a), by + 70 * sin(a), 2.6, a, DS_BALL_S_YELLOW, 1);
             }
             Wait(16);
         }
@@ -516,7 +517,7 @@ task Phase5_EmberBehavior(sh) {
         let sx = ObjMove_GetX(sh);
         let sy = ObjMove_GetY(sh);
         ascent(i in 0..4) {
-            let p = CreateShotA1(sx, sy, 0.9, i * 90, DS_BALL_SS_ORANGE, 1);
+            let p = CreateShotA1(sx, sy, 0.9, i * 90, DS_BALL_S_YELLOW, 1);
             Phase5_FadeSlow(p);
         }
     }
@@ -529,7 +530,7 @@ task Phase5_EmberBehavior(sh) {
             let sx = ObjMove_GetX(sh);
             let sy = ObjMove_GetY(sh);
             Obj_Delete(sh);
-            let glow = CreateShotA1(sx, sy, 0, 0, DS_BALL_S_RED, 1);
+            let glow = CreateShotA1(sx, sy, 0, 0, DS_BALL_S_YELLOW, 1);
             ObjRender_SetAlpha(glow, 150);
             Phase5_Afterglow(glow);
         }
@@ -550,7 +551,7 @@ task Phase5_HeatTask() {
     while (phaseActive) {
         if (hpPercent <= 40) {
             let x = rand(60, 320);
-            let sh = CreateShotA1(x, 420, 1.4, 270, DS_BALL_M_RED, 1);
+            let sh = CreateShotA1(x, 420, 1.4, 270, DS_BALL_M_GREEN, 1);
             ObjRender_SetAlpha(sh, 180);
             Phase5_Sway(sh);
         }
@@ -611,10 +612,10 @@ task Phase6_ArmTask() {
         let by = ObjMove_GetY(enemy);
         ascent(i in 0..4) {
             let a = angs[i];
-            CreateShotA1(bx, by, 1.8 * spiralPulse, a, DS_BALL_L_GRAY, 1);
+            CreateShotA1(bx, by, 1.8 * spiralPulse, a, DS_BALL_M_GREEN, 1);
 
             let a2 = a + 45;
-            let sub = CreateShotA1(bx, by, 1.4 * spiralPulse, a2, DS_BALL_S_ORANGE, 1);
+            let sub = CreateShotA1(bx, by, 1.4 * spiralPulse, a2, DS_BALL_S_YELLOW, 1);
             Phase6_SubBehavior(sub, dirs[i]);
 
             angs[i] = a + dirs[i] * 5;
@@ -624,7 +625,7 @@ task Phase6_ArmTask() {
         if (hpPercent <= 40 && (phase6Counter % 12 == 0)) {
             ascent(i in 0..6) {
                 let pa = i * 60;
-                let petal = CreateShotA1(bx, by, 1.0, pa, DS_BALL_S_PURPLE, 1);
+                let petal = CreateShotA1(bx, by, 1.0, pa, DS_BALL_S_YELLOW, 1);
                 let sgn = 1;
                 if (i % 2 == 0) { sgn = -1; }
                 ObjMove_SetAngularVelocity(petal, sgn * 1.2);
@@ -643,7 +644,7 @@ task Phase6_SubBehavior(sub, dir) {
     let a = ObjMove_GetAngle(sub);
     let s = ObjMove_GetSpeed(sub);
     Obj_Delete(sub);
-    let sh2 = CreateShotA1(sx, sy, s, a, DS_BALL_S_GRAY, 1);
+    let sh2 = CreateShotA1(sx, sy, s, a, DS_BALL_S_GREEN, 1);
     ObjMove_SetAngularVelocity(sh2, -dir * 1.5);
 }
 
@@ -711,7 +712,7 @@ function Phase7_SubLeaf() {
 function Phase7_SubRain() {
     ascent(i in 0..6) {
         let x = 30 + i * 60;
-        CreateShotA1(x, 10, 2.0, 90, DS_BALL_S_ORANGE, 40);
+        CreateShotA1(x, 10, 2.0, 90, DS_BALL_S_YELLOW, 40);
     }
 }
 
@@ -720,7 +721,7 @@ function Phase7_SubMilk() {
     let by = ObjMove_GetY(enemy);
     ascent(i in 0..4) {
         let a = haloAngleOffset + i * 90;
-        let sh = CreateShotA1(bx, by, 1.6, a, DS_BALL_L_GRAY, 1);
+        let sh = CreateShotA1(bx, by, 1.6, a, DS_BALL_M_GREEN, 1);
         let sgn = 1;
         if (i % 2 == 0) { sgn = -1; }
         ObjMove_SetAngularVelocity(sh, sgn * 2.0);
@@ -732,12 +733,12 @@ function Phase7_SubSparkSmoke() {
     let by = ObjMove_GetY(enemy);
     ascent(i in 0..8) {
         let a = haloAngleOffset + i * 45;
-        CreateShotA1(bx + 70 * cos(a), by + 70 * sin(a), 1.6, a, DS_BALL_S_ORANGE, 1);
+        CreateShotA1(bx + 70 * cos(a), by + 70 * sin(a), 1.6, a, DS_BALL_S_YELLOW, 1);
     }
     ascent(i in 0..2) {
         let side = -1;
         if (i == 1) { side = 1; }
-        CreateShotA1(bx + side * 100, by, 1.4, 90 + side * 20, DS_BALL_S_CYAN, 1);
+        CreateShotA1(bx + side * 100, by, 1.4, 90 + side * 20, DS_BALL_S_GREEN, 1);
     }
 }
 
@@ -758,7 +759,7 @@ task Phase7_FinalBarrage() {
     ObjMove_SetY(enemy, baseY);
     let t = 0;
     let layers = [70, 105, 140, 175, 210, 245, 280];
-    let ids = [DS_BALL_S_GREEN, DS_BALL_S_GRAY, DS_BALL_S_ORANGE, DS_BALL_S_CYAN, DS_BALL_S_RED, DS_BALL_S_GRAY, DS_BALL_S_PURPLE];
+    let ids = [DS_BALL_S_GREEN, DS_BALL_S_GREEN, DS_BALL_S_YELLOW, DS_BALL_S_GREEN, DS_BALL_S_YELLOW, DS_BALL_S_GREEN, DS_BALL_S_YELLOW];
     while (phaseActive && hpPercent <= 10) {
         let bx = ObjMove_GetX(enemy);
         let by = ObjMove_GetY(enemy);

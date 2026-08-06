@@ -1,0 +1,910 @@
+#TouhouDanmakufu[Single]
+#ScriptVersion[3]
+#Title["茶館の主 ～七彩喫茶夢幻譚～"]
+#Text["緑茶・抹茶・紅茶・烏龍茶・ほうじ茶・ミルクティー・茶会 全7フェーズ自作ボス弾幕 (東方弾幕風ph3)"]
+#Player[FREE]
+#Rank[ALL]
+#BGM[""]
+
+// ============================================================
+//  茶館の主 ～七彩喫茶夢幻譚～
+//  東方弾幕風 ph3 用 単一ファイル自作ボススクリプト
+//
+//  ※ このスクリプトは弾/敵グラフィックを外部リソースに依存しません。
+//     LoadGraphic で読み込む画像パスは環境に合わせて書き換えてください。
+//     (未設定でも動作しますが、見た目は簡易な矩形/既定弾になります)
+//
+//  構成：
+//    @Initialize / @MainLoop / @Event / @Finalize ... メイン制御
+//    task Phase1_Sencha        ... 煎茶・若葉の渦
+//    task Phase2_Matcha        ... 抹茶・泡沫翠環
+//    task Phase3_Koucha        ... 紅茶・琥珀の雫雨
+//    task Phase4_Oolong        ... 烏龍茶・龍の茶煙
+//    task Phase5_Houjicha      ... ほうじ茶・焙煎火花
+//    task Phase6_MilkTea       ... ミルクティー・白霞の螺旋
+//    task Phase7_Chakai        ... 茶会・七彩千客万来 (最終)
+// ============================================================
+
+let objEnemy = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+let objBossImg = "img/boss_placeholder.png";      // 敵グラフィック(任意で差し替え)
+let shotImgPath = "img/shot_placeholder.png";     // 弾グラフィック(任意で差し替え)
+
+let stageW = GetStgFrameWidth();
+let stageH = GetStgFrameHeight();
+let cx = stageW / 2;
+let cy = stageH / 2;
+
+// 各フェーズの体力
+let LIFE_P1 = 6000;
+let LIFE_P2 = 6500;
+let LIFE_P3 = 6500;
+let LIFE_P4 = 7000;
+let LIFE_P5 = 7000;
+let LIFE_P6 = 7500;
+let LIFE_P7 = 9000;
+
+// フェーズ専用の常駐サブタスクを止めるためのフラグ(フェーズ終了時にfalseへ)
+let bgTaskActive = true;
+
+// フェーズ名表示用
+let PHASE_NAME = ["", "煎茶・若葉の渦", "抹茶・泡沫翠環", "紅茶・琥珀の雫雨",
+                       "烏龍茶・龍の茶煙", "ほうじ茶・焙煎火花", "ミルクティー・白霞の螺旋",
+                       "茶会・七彩千客万来"];
+
+// ------------------------------------------------------------
+// 弾色 (弾グラフィックが無い環境向けに CreateShotA1 の色番号を使用)
+// 0:赤 1:紫 2:青 3:緑 4:黄 5:橙 6:桃 7:灰 8:シアン 9:白 10:虹
+// ------------------------------------------------------------
+const COL_YELLOWGREEN = 4;
+const COL_DEEPGREEN   = 3;
+const COL_GOLD        = 4;
+const COL_MATCHA      = 3;
+const COL_WHITEGREEN  = 9;
+const COL_AMBER       = 5;
+const COL_MILKWHITE   = 9;
+const COL_BROWN       = 5;
+const COL_TEAL        = 8;
+const COL_GRAYBLUE    = 7;
+const COL_CHAR_SPARK  = 5;
+const COL_RED_EMBER   = 0;
+const COL_PINK        = 6;
+const COL_RAINBOW     = 10;
+
+// ============================================================
+// メイン制御
+// ============================================================
+@Initialize {
+    // 独自の敵/弾グラフィックを使う場合はここで LoadGraphic してください。
+    // 例: LoadGraphic(objBossImg); LoadGraphic(shotImgPath);
+
+    ObjEnemy_Regist(objEnemy);
+    ObjEnemy_SetX(objEnemy, cx);
+    ObjEnemy_SetY(objEnemy, 120);
+    ObjEnemy_SetLife(objEnemy, LIFE_P1);
+    ObjEnemy_SetDamageRateShot(objEnemy, 100);
+    ObjEnemy_SetDamageRateSpell(objEnemy, 100);
+    ObjEnemy_SetCollisionA(objEnemy, 42);
+    ObjEnemy_SetCollisionB(objEnemy, 42);
+    Obj_SetRenderPriorityI(objEnemy, 60);
+
+    // 敵グラフィックを使う場合は以下のように差し替えてください:
+    // ObjEnemy_SetGraphicRect(objEnemy, 0, 0, 64, 64);
+
+    SetAutoDeleteObject(true);
+
+    task MainSequence;
+}
+
+@MainLoop {
+    yield;
+}
+
+@Finalize {
+}
+
+// ============================================================
+// フェーズ進行タスク（@MainLoop 開始と同時に走らせる）
+// ============================================================
+task MainSequence {
+    yield;
+    TWait(30);
+
+    Phase1_Sencha();
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+
+    ObjEnemy_SetLife(objEnemy, LIFE_P2);
+    Phase2_Matcha();
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+
+    ObjEnemy_SetLife(objEnemy, LIFE_P3);
+    Phase3_Koucha();
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+
+    ObjEnemy_SetLife(objEnemy, LIFE_P4);
+    Phase4_Oolong();
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+
+    ObjEnemy_SetLife(objEnemy, LIFE_P5);
+    Phase5_Houjicha();
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+
+    ObjEnemy_SetLife(objEnemy, LIFE_P6);
+    Phase6_MilkTea();
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+
+    ObjEnemy_SetLife(objEnemy, LIFE_P7);
+    Phase7_Chakai();
+
+    Finish();
+}
+
+function Finish {
+    DeleteShotAll(TYPE_SHOT, TYPE_IMMEDIATE);
+    ObjEnemy_SetLife(objEnemy, 0);
+}
+
+// 体力割合(0-100)を返す
+function LifeRate(total) {
+    return ObjEnemy_GetInfo(objEnemy, INFO_LIFE) / total * 100;
+}
+
+function BX { return ObjEnemy_GetX(objEnemy); }
+function BY { return ObjEnemy_GetY(objEnemy); }
+
+function PX { return GetPlayerX(); }
+function PY { return GetPlayerY(); }
+
+// ============================================================
+// 汎用弾生成ヘルパー
+// ============================================================
+
+// ============================================================
+// フェーズ1: 煎茶・若葉の渦
+// ============================================================
+task Phase1_Sencha {
+    ObjEnemy_SetLife(objEnemy, LIFE_P1);
+    let leafCount = 12;
+    let baseAngIn = 0;
+    let baseAngOut = 0;
+    let dirIn = 1;
+    let dirOut = 1;
+    let flipTimer = 0;
+    let flipping = false;
+
+    while (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P1);
+        let col = (rate <= 70) ? COL_DEEPGREEN : COL_YELLOWGREEN;
+        let interval = (rate <= 10) ? 20 : 34;
+        let spd = (rate <= 10) ? 1.6 : 2.0;
+
+        // 体力70%以下: 3秒毎に回転反転、反転前に一瞬静止+左右振動
+        if (rate <= 70) {
+            flipTimer++;
+            if (flipTimer >= 180) {
+                flipping = true;
+                let shake = 0;
+                while (shake < 18) {
+                    ObjEnemy_SetX(objEnemy, cx + 6 * sin(shake * 60));
+                    shake++;
+                    yield;
+                }
+                dirIn *= -1;
+                dirOut *= -1;
+                flipTimer = 0;
+                flipping = false;
+            }
+        }
+
+        if (!flipping && ObjEnemy_GetInfo(objEnemy, INFO_TIMER) % interval == 0) {
+            // 内側の螺旋(遅い) / 外側の螺旋(速い) の二重構造
+            let bx = BX(); let by = BY();
+            loop (leafCount) {
+                baseAngIn += 360 / leafCount;
+                let a = baseAngIn * dirIn;
+                let obj1 = ObjShot_Create(OBJ_SHOT);
+                ObjShot_SetGraphic(obj1, col);
+                ObjShot_SetPosition(obj1, bx + 40 * cos(a), by + 40 * sin(a));
+                ObjShot_SetSpeed(obj1, spd * 0.8);
+                ObjShot_SetAngle(obj1, a);
+                ObjShot_SetIntersectionCircleToShot(obj1, 5);
+                ObjShot_SetDelay(obj1, 8);
+                ObjShot_SetAutoDelete(obj1, true);
+                ObjShot_Regist(obj1);
+            }
+            loop (leafCount) {
+                baseAngOut += 360 / leafCount;
+                let a = -baseAngOut * dirOut;
+                let obj2 = ObjShot_Create(OBJ_SHOT);
+                ObjShot_SetGraphic(obj2, col);
+                ObjShot_SetPosition(obj2, bx + 70 * cos(a), by + 70 * sin(a));
+                ObjShot_SetSpeed(obj2, spd * 1.25);
+                ObjShot_SetAngle(obj2, a);
+                ObjShot_SetIntersectionCircleToShot(obj2, 5);
+                ObjShot_SetDelay(obj2, 8);
+                ObjShot_SetAutoDelete(obj2, true);
+                ObjShot_Regist(obj2);
+            }
+        }
+
+        // 体力40%以下: ボス直下へ細い金色直線弾
+        if (rate <= 40 && ObjEnemy_GetInfo(objEnemy, INFO_TIMER) % 50 == 0) {
+            let obj3 = ObjShot_Create(OBJ_SHOT);
+            ObjShot_SetGraphic(obj3, COL_GOLD);
+            ObjShot_SetPosition(obj3, BX(), BY());
+            ObjShot_SetSpeed(obj3, 3.5);
+            ObjShot_SetAngle(obj3, 90);
+            ObjShot_SetIntersectionCircleToShot(obj3, 3);
+            ObjShot_SetDelay(obj3, 6);
+            ObjShot_SetAutoDelete(obj3, true);
+            ObjShot_Regist(obj3);
+        }
+
+        yield;
+    }
+}
+
+// ============================================================
+// フェーズ2: 抹茶・泡沫翠環
+// ============================================================
+task Phase2_Matcha {
+    ObjEnemy_SetLife(objEnemy, LIFE_P2);
+    let ringRot = 0;
+
+    while (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P2);
+
+        // ボスは左右にゆっくり移動
+        ObjEnemy_SetX(objEnemy, cx + 90 * sin(ObjEnemy_GetInfo(objEnemy, INFO_TIMER) * 0.7));
+
+        if (rate <= 40) { ringRot += 0.4; }
+
+        if (ObjEnemy_GetInfo(objEnemy, INFO_TIMER) % 130 == 0) {
+            let gapAngle = ringRot + 45; // 輪の切れ目
+            let outerN = 16;
+            let innerN = 20;
+            let bx = BX(); let by = BY();
+
+            loop (outerN) {
+                let idx = GetLoopIterator() - 1;
+                let a = ringRot + idx * (360 / outerN);
+                if (abs(fmod(a - gapAngle + 720, 360)) < (360 / outerN)) { continue; } // 切れ目
+                task CreateBubble(bx, by, 120, a, 0.6, true, rate);
+            }
+            loop (innerN) {
+                let idx = GetLoopIterator() - 1;
+                let a = -ringRot + idx * (360 / innerN);
+                if (abs(fmod(a - gapAngle + 720, 360)) < (360 / innerN)) { continue; }
+                task CreateBubble(bx, by, 60, a, 1.1, false, rate);
+            }
+        }
+
+        // 体力10%以下: 常時小泡の回転層 + 大泡連続射出
+        if (rate <= 10 && ObjEnemy_GetInfo(objEnemy, INFO_TIMER) % 8 == 0) {
+            let a = ObjEnemy_GetInfo(objEnemy, INFO_TIMER) * 6;
+            task CreateBubble(BX(), BY(), 55, a, 1.2, false, rate);
+        }
+        if (rate <= 10 && ObjEnemy_GetInfo(objEnemy, INFO_TIMER) % 40 == 0) {
+            let a = rand(0, 360);
+            task CreateBubble(BX(), BY(), 130, a, 0.55, true, rate);
+        }
+
+        yield;
+    }
+}
+
+task CreateBubble(bx, by, dist, ang, spd, isBig, rate) {
+    let obj = ObjShot_Create(OBJ_SHOT);
+    let size = isBig ? 10 : 5;
+    ObjShot_SetGraphic(obj, COL_MATCHA);
+    ObjShot_SetPosition(obj, bx + dist * cos(ang), by + dist * sin(ang));
+    ObjShot_SetSpeed(obj, 0);
+    ObjShot_SetAngle(obj, ang);
+    ObjShot_SetIntersectionCircleToShot(obj, size * 0.5 + 2);
+    ObjShot_SetAutoDelete(obj, true);
+    ObjShot_Regist(obj);
+
+    // 淡色→鮮翠へ明滅(見た目は色番号固定、点滅は透明度で表現)
+    let blink = 0;
+    while (blink < 24) {
+        Obj_SetAlpha(obj, 128 + 100 * sin(blink * 40));
+        blink++;
+        yield;
+    }
+    Obj_SetAlpha(obj, 255);
+
+    // プレイヤーのいた位置へ低速で弧を描いて発射
+    let tx = PX(); let ty = PY();
+    let dx = tx - Obj_GetX(obj);
+    let dy = ty - Obj_GetY(obj);
+    let baseAng = atan2(dy, dx);
+    let curve = isBig ? -0.3 : 0.5;
+    let t = 0;
+    let split = false;
+    let splitAt = 60 + 10 * (blink % 4); // 60〜90 の整数(浮動小数比較を避ける)
+
+    while (t < 400) {
+        let curAng = baseAng + curve * sin(t * 0.03) * 20;
+        ObjMove_SetAngle(obj, curAng);
+        ObjMove_SetSpeed(obj, spd);
+
+        // 体力70%以下: 白く強く点滅 → 分裂
+        if (rate <= 70 && !split && t == splitAt - 15) {
+            let f = 0;
+            while (f < 15) {
+                Obj_SetAlpha(obj, 200 + 55 * sin(f * 80));
+                f++;
+                yield;
+            }
+        }
+        if (rate <= 70 && !split && t == splitAt) {
+            split = true;
+            let curAng2 = ObjMove_GetAngle(obj);
+            task SpawnSmallBubble(Obj_GetX(obj), Obj_GetY(obj), curAng2 - 18, spd);
+            task SpawnSmallBubble(Obj_GetX(obj), Obj_GetY(obj), curAng2 + 18, spd);
+        }
+
+        let bx2 = Obj_GetX(obj); let by2 = Obj_GetY(obj);
+        if (bx2 < -32 || bx2 > stageW + 32 || by2 < -32 || by2 > stageH + 32) { break; }
+        t++;
+        yield;
+    }
+    Obj_Delete(obj);
+}
+
+task SpawnSmallBubble(x, y, ang, spd) {
+    let obj = ObjShot_Create(OBJ_SHOT);
+    ObjShot_SetGraphic(obj, COL_MATCHA);
+    ObjShot_SetPosition(obj, x, y);
+    ObjShot_SetSpeed(obj, spd * 1.1);
+    ObjShot_SetAngle(obj, ang);
+    ObjShot_SetIntersectionCircleToShot(obj, 3);
+    ObjShot_SetDelay(obj, 4);
+    ObjShot_SetAutoDelete(obj, true);
+    ObjShot_Regist(obj);
+}
+
+// ============================================================
+// フェーズ3: 紅茶・琥珀の雫雨
+// ============================================================
+task Phase3_Koucha {
+    ObjEnemy_SetLife(objEnemy, LIFE_P3);
+    let waveDir = 1;
+    let waveX = 0;
+    let diagFlip = 1;
+
+    while (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P3);
+        let t = ObjEnemy_GetInfo(objEnemy, INFO_TIMER);
+
+        if (t % 12 == 0) {
+            waveX += waveDir * 24;
+            if (waveX > stageW - 20 || waveX < 20) { waveDir *= -1; }
+
+            let big = (t % 96 == 0);
+            let dropAng = 90;
+
+            if (rate <= 70 && t % 8 == 0) {
+                // 斜め方向の雨(交互)
+                diagFlip = ((t / 240) % 2 == 0) ? 1 : -1;
+                let sx = (diagFlip == 1) ? rand(0, stageW * 0.3) : rand(stageW * 0.7, stageW);
+                task CreateDrop(sx, -10, dropAng + diagFlip * 20, big, rate);
+            } else {
+                task CreateDrop(waveX, -10, dropAng, big, rate);
+            }
+        }
+
+        yield;
+    }
+}
+
+task CreateDrop(sx, sy, ang, isBig, rate) {
+    // 落下予告の光の線
+    let guide = ObjShot_Create(OBJ_SHOT);
+    ObjShot_SetGraphic(guide, COL_AMBER);
+    ObjShot_SetPosition(guide, sx, stageH - 10);
+    Obj_SetAlpha(guide, 90);
+    ObjShot_SetIntersectionCircleToShot(guide, 1);
+    ObjShot_SetSpeed(guide, 0);
+    ObjShot_SetAngle(guide, 0);
+    ObjShot_SetAutoDelete(guide, true);
+    ObjShot_Regist(guide);
+    TWait(20);
+    Obj_Delete(guide);
+
+    let obj = ObjShot_Create(OBJ_SHOT);
+    ObjShot_SetGraphic(obj, COL_AMBER);
+    ObjShot_SetPosition(obj, sx, sy);
+    let spd = isBig ? 1.3 : 1.6;
+    ObjShot_SetSpeed(obj, spd);
+    ObjShot_SetAngle(obj, ang);
+    ObjShot_SetIntersectionCircleToShot(obj, isBig ? 8 : 4);
+    ObjShot_SetDelay(obj, 6);
+    ObjShot_SetAutoDelete(obj, true);
+    ObjShot_Regist(obj);
+
+    let accelerated = false;
+    let t = 0;
+    while (t < 500) {
+        let y = Obj_GetY(obj);
+        if (!accelerated && y > stageH * 0.45) {
+            accelerated = true;
+            ObjMove_SetSpeed(obj, spd * 2.4);
+            if (isBig) {
+                // 通過後、小さな粒弾を左右へ短く散らす
+                loop (5) {
+                    let idx = GetLoopIterator() - 1;
+                    let pAng = 90 + (idx - 2) * 22;
+                    let p = ObjShot_Create(OBJ_SHOT);
+                    ObjShot_SetGraphic(p, COL_BROWN);
+                    ObjShot_SetPosition(p, Obj_GetX(obj), Obj_GetY(obj));
+                    ObjShot_SetSpeed(p, 1.8);
+                    ObjShot_SetAngle(p, pAng);
+                    ObjShot_SetIntersectionCircleToShot(p, 2);
+                    ObjShot_SetAutoDelete(p, true);
+                    ObjShot_Regist(p);
+                    task {
+                        let obj2 = p;
+                        let life = 0;
+                        while (life < 40) {
+                            ObjMove_SetSpeed(obj2, ObjMove_GetSpeed(obj2) * 0.94);
+                            life++;
+                            yield;
+                        }
+                        Obj_Delete(obj2);
+                    };
+                }
+            }
+        }
+
+        // 体力40%以下: 着地時に波紋 → 極低速の横向き弾
+        if (rate <= 40 && y >= stageH - 16) {
+            let dir = (Obj_GetX(obj) < cx) ? 1 : -1;
+            let r1 = ObjShot_Create(OBJ_SHOT);
+            ObjShot_SetGraphic(r1, COL_MILKWHITE);
+            ObjShot_SetPosition(r1, Obj_GetX(obj), stageH - 12);
+            ObjShot_SetSpeed(r1, 0.7);
+            ObjShot_SetAngle(r1, dir > 0 ? 0 : 180);
+            ObjShot_SetIntersectionCircleToShot(r1, 3);
+            ObjShot_SetAutoDelete(r1, true);
+            ObjShot_Regist(r1);
+            break;
+        }
+
+        if (y > stageH + 20 || Obj_GetX(obj) < -20 || Obj_GetX(obj) > stageW + 20) { break; }
+        t++;
+        yield;
+    }
+    Obj_Delete(obj);
+}
+
+// ============================================================
+// フェーズ4: 烏龍茶・龍の茶煙
+// ============================================================
+task Phase4_Oolong {
+    ObjEnemy_SetLife(objEnemy, LIFE_P4);
+    bgTaskActive = true;
+    task DragonBand(1);
+    task DragonBand(-1);
+
+    while (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P4);
+        ObjEnemy_SetX(objEnemy, cx + 60 * sin(ObjEnemy_GetInfo(objEnemy, INFO_TIMER) * 0.5));
+
+        // 体力40%以下: 龍の頭 大弾
+        if (rate <= 40 && ObjEnemy_GetInfo(objEnemy, INFO_TIMER) % 130 == 0) {
+            let obj = ObjShot_Create(OBJ_SHOT);
+            ObjShot_SetGraphic(obj, COL_GRAYBLUE);
+            ObjShot_SetPosition(obj, PX(), 0);
+            ObjShot_SetSpeed(obj, 1.4);
+            ObjShot_SetAngle(obj, 90);
+            ObjShot_SetIntersectionCircleToShot(obj, 14);
+            ObjShot_SetDelay(obj, 10);
+            ObjShot_SetAutoDelete(obj, true);
+            ObjShot_Regist(obj);
+            task {
+                let head = obj;
+                let t = 0;
+                while (t < 300 && Obj_GetY(head) < stageH + 20) {
+                    if (t % 6 == 0) {
+                        let tail = ObjShot_Create(OBJ_SHOT);
+                        ObjShot_SetGraphic(tail, COL_TEAL);
+                        ObjShot_SetPosition(tail, Obj_GetX(head), Obj_GetY(head));
+                        ObjShot_SetSpeed(tail, 1.0);
+                        ObjShot_SetAngle(tail, 90 + 20 * sin(t * 10));
+                        ObjShot_SetIntersectionCircleToShot(tail, 3);
+                        ObjShot_SetAutoDelete(tail, true);
+                        ObjShot_Regist(tail);
+                    }
+                    t++;
+                    yield;
+                }
+                Obj_Delete(head);
+            };
+        }
+        yield;
+    }
+    bgTaskActive = false;
+}
+
+task DragonBand(side) {
+    let phase = (side > 0) ? 0 : 180;
+    let waveAmp = 140;
+    let t = 0;
+    while (bgTaskActive && ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P4);
+        let branch = (rate <= 70 && (t % 400) < 60);
+
+        if (t % 5 == 0) {
+            let bandX = cx + side * 100 + waveAmp * sin(t * 0.02 + phase);
+            let bandY = fmod(t * 1.5, stageH + 100) - 50;
+
+            CreateSmokeBullet(bandX, bandY, side, t);
+            if (branch) {
+                CreateSmokeBullet(bandX + side * 40, bandY - 20, side, t);
+            }
+
+            // 淡金色の小弾が垂直にこぼれ落ちる
+            if (t % 20 == 0) {
+                let d = ObjShot_Create(OBJ_SHOT);
+                ObjShot_SetGraphic(d, COL_GOLD);
+                ObjShot_SetPosition(d, bandX, bandY);
+                ObjShot_SetSpeed(d, 3.2);
+                ObjShot_SetAngle(d, 90);
+                ObjShot_SetIntersectionCircleToShot(d, 2);
+                ObjShot_SetAutoDelete(d, true);
+                ObjShot_Regist(d);
+            }
+        }
+
+        // 体力10%以下: 逆回転の渦
+        if (rate <= 10) {
+            waveAmp = stageW * 0.4;
+            phase += side * 1.2;
+        }
+
+        t++;
+        yield;
+    }
+}
+
+task CreateSmokeBullet(x, y, side, t) {
+    let obj = ObjShot_Create(OBJ_SHOT);
+    ObjShot_SetGraphic(obj, (t % 2 == 0) ? COL_TEAL : COL_GRAYBLUE);
+    ObjShot_SetPosition(obj, x, y);
+    ObjShot_SetSpeed(obj, 1.3);
+    ObjShot_SetAngle(obj, 90 + side * 15);
+    ObjShot_SetIntersectionCircleToShot(obj, 4);
+    ObjShot_SetDelay(obj, 6);
+    ObjShot_SetAutoDelete(obj, true);
+    ObjShot_Regist(obj);
+}
+
+// ============================================================
+// フェーズ5: ほうじ茶・焙煎火花
+// ============================================================
+task Phase5_Houjicha {
+    ObjEnemy_SetLife(objEnemy, LIFE_P5);
+    let quadrant = 0;
+
+    while (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P5);
+        let t = ObjEnemy_GetInfo(objEnemy, INFO_TIMER);
+
+        if (rate > 10 && t % 70 == 0) {
+            // 円の上/下/左/右半分の順に発射
+            let startA = quadrant * 90;
+            loop (8) {
+                let idx = GetLoopIterator() - 1;
+                let a = startA + idx * (90 / 8);
+                task CreateEmber(BX(), BY(), a, rate, 90);
+            }
+            quadrant = (quadrant + 1) % 4;
+        }
+
+        // 体力40%以下: 下部から上昇する熱気弾
+        if (rate <= 40 && t % 45 == 0) {
+            let hx = rand(40, stageW - 40);
+            let obj = ObjShot_Create(OBJ_SHOT);
+            ObjShot_SetGraphic(obj, COL_RED_EMBER);
+            ObjShot_SetPosition(obj, hx, stageH + 10);
+            ObjShot_SetSpeed(obj, 1.2);
+            ObjShot_SetAngle(obj, 270);
+            ObjShot_SetIntersectionCircleToShot(obj, 4);
+            ObjShot_SetAutoDelete(obj, true);
+            ObjShot_Regist(obj);
+            task {
+                let o = obj;
+                let s = 0;
+                while (Obj_GetY(o) > -20) {
+                    ObjMove_SetX(o, Obj_GetX(o) + 1.6 * sin(s * 10));
+                    s++;
+                    yield;
+                }
+                Obj_Delete(o);
+            };
+        }
+
+        // 体力10%以下: 焙煎炉展開、高速連射、一定周期で必ず一方向へ流れる
+        if (rate <= 10 && t % 12 == 0) {
+            let flowAng = 90 * ((t / 90) % 4);
+            loop (16) {
+                let idx = GetLoopIterator() - 1;
+                let a = idx * (360 / 16) + t * 2;
+                task CreateEmber(BX(), BY(), a, rate, flowAng);
+            }
+        }
+
+        yield;
+    }
+}
+
+task CreateEmber(bx, by, ang, rate, flowAng) {
+    let obj = ObjShot_Create(OBJ_SHOT);
+    ObjShot_SetGraphic(obj, COL_CHAR_SPARK);
+    ObjShot_SetPosition(obj, bx + 40 * cos(ang), by + 40 * sin(ang));
+    ObjShot_SetSpeed(obj, 0);
+    ObjShot_SetAngle(obj, ang);
+    ObjShot_SetIntersectionCircleToShot(obj, 3);
+    ObjShot_SetAutoDelete(obj, true);
+    ObjShot_Regist(obj);
+
+    TWait(20);
+    ObjMove_SetSpeed(obj, rate <= 10 ? 3.0 : 2.2);
+    ObjMove_SetAngle(obj, ang);
+    TWait(14);
+
+    // 失速して火の粉/落下
+    ObjMove_SetSpeed(obj, 0.3);
+    if (rate <= 70) {
+        loop (4) {
+            let idx = GetLoopIterator() - 1;
+            let sparkAng = idx * 90;
+            let sp = ObjShot_Create(OBJ_SHOT);
+            ObjShot_SetGraphic(sp, COL_CHAR_SPARK);
+            ObjShot_SetPosition(sp, Obj_GetX(obj), Obj_GetY(obj));
+            ObjShot_SetSpeed(sp, 1.0);
+            ObjShot_SetAngle(sp, sparkAng);
+            ObjShot_SetIntersectionCircleToShot(sp, 1.5);
+            ObjShot_SetAutoDelete(sp, true);
+            ObjShot_Regist(sp);
+        }
+    }
+
+    let flowBias = (flowAng != null) ? flowAng : 90;
+    let t = 0;
+    while (t < 200) {
+        ObjMove_SetAngle(obj, 90 + (flowBias - 90) * 0.3);
+        ObjMove_SetSpeed(obj, 0.9);
+        if (Obj_GetY(obj) > stageH + 10) { break; }
+        t++;
+        yield;
+    }
+    Obj_Delete(obj);
+}
+
+// ============================================================
+// フェーズ6: ミルクティー・白霞の螺旋
+// ============================================================
+task Phase6_MilkTea {
+    ObjEnemy_SetLife(objEnemy, LIFE_P6);
+    bgTaskActive = true;
+    task MilkArm(0, 1);
+    task MilkArm(90, 1);
+    task MilkArm(180, -1);
+    task MilkArm(270, -1);
+
+    while (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P6);
+        let t = ObjEnemy_GetInfo(objEnemy, INFO_TIMER);
+
+        // 体力40%以下: 中心からハート/花弁型弾を放射(菱形弾で代用)
+        if (rate <= 40 && t % 55 == 0) {
+            loop (6) {
+                let idx = GetLoopIterator() - 1;
+                let a = idx * 60 + t;
+                let obj = ObjShot_Create(OBJ_SHOT);
+                ObjShot_SetGraphic(obj, COL_PINK);
+                ObjShot_SetPosition(obj, BX(), BY());
+                ObjShot_SetSpeed(obj, 1.4);
+                ObjShot_SetAngle(obj, a);
+                ObjShot_SetIntersectionCircleToShot(obj, 3);
+                ObjShot_SetAutoDelete(obj, true);
+                ObjShot_Regist(obj);
+                task {
+                    let o = obj;
+                    let spin = (idx % 2 == 0) ? 1 : -1;
+                    let s = 0;
+                    while (s < 240) {
+                        ObjMove_SetAngle(o, ObjMove_GetAngle(o) - spin * 0.6);
+                        let x = Obj_GetX(o); let y = Obj_GetY(o);
+                        if (x < -20 || x > stageW + 20 || y < -20 || y > stageH + 20) { break; }
+                        s++;
+                        yield;
+                    }
+                    Obj_Delete(o);
+                };
+            }
+        }
+
+        yield;
+    }
+    bgTaskActive = false;
+}
+
+task MilkArm(startAng, dir) {
+    let ang = startAng;
+    let radius = 30;
+    let t = 0;
+    while (bgTaskActive && ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P6);
+
+        // 体力10%以下: 縮んでから急速に広がる「かき混ぜ」
+        if (rate <= 10) {
+            let cyc = fmod(t, 90);
+            radius = (cyc < 30) ? (30 - cyc) : (cyc - 30) * 3;
+        } else {
+            radius += 1.6;
+            if (radius > stageW * 0.55) { radius = 30; }
+        }
+
+        ang += dir * 1.5;
+
+        if (t % 4 == 0) {
+            let bx = BX() + radius * cos(ang);
+            let by = BY() + radius * sin(ang);
+            let obj = ObjShot_Create(OBJ_SHOT);
+            ObjShot_SetGraphic(obj, COL_MILKWHITE);
+            ObjShot_SetPosition(obj, bx, by);
+            ObjShot_SetSpeed(obj, 1.0);
+            ObjShot_SetAngle(obj, ang);
+            ObjShot_SetIntersectionCircleToShot(obj, 4);
+            ObjShot_SetDelay(obj, 6);
+            ObjShot_SetAutoDelete(obj, true);
+            ObjShot_Regist(obj);
+
+            // 螺旋腕の間の薄茶色小弾
+            let obj2 = ObjShot_Create(OBJ_SHOT);
+            ObjShot_SetGraphic(obj2, COL_BROWN);
+            ObjShot_SetPosition(obj2, BX() + (radius * 0.6) * cos(ang + 15), BY() + (radius * 0.6) * sin(ang + 15));
+            ObjShot_SetSpeed(obj2, 0.9);
+            ObjShot_SetAngle(obj2, ang + 15);
+            ObjShot_SetIntersectionCircleToShot(obj2, 2.5);
+            ObjShot_SetAutoDelete(obj2, true);
+            ObjShot_Regist(obj2);
+
+            if (rate <= 70) {
+                task {
+                    let o = obj2;
+                    TWait(90);
+                    let f = 0;
+                    while (f < 10) {
+                        Obj_SetAlpha(o, 200 + 55 * sin(f * 90));
+                        f++;
+                        yield;
+                    }
+                    ObjShot_SetGraphic(o, COL_MILKWHITE);
+                    ObjMove_SetAngle(o, ObjMove_GetAngle(o) - dir * 25);
+                };
+            }
+        }
+
+        t++;
+        yield;
+    }
+}
+
+// ============================================================
+// フェーズ7: 茶会・七彩千客万来 (最終フェーズ)
+// ============================================================
+task Phase7_Chakai {
+    ObjEnemy_SetLife(objEnemy, LIFE_P7);
+    ObjEnemy_SetX(objEnemy, cx);
+    ObjEnemy_SetY(objEnemy, cy - 60);
+
+    let cycleTimer = 0;
+    let ringRotation = 0;
+
+    while (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) > 0) {
+        let rate = LifeRate(LIFE_P7);
+
+        if (rate > 10) {
+            let cycleLen = (rate <= 20) ? 360 : 480; // 6秒/8秒 (60fps換算)
+            let quarter = cycleLen / 4;
+            cycleTimer = (cycleTimer + 1) % cycleLen;
+
+            if (rate <= 40) { ringRotation += 0.15; }
+
+            let seg = cycleTimer / quarter;
+            let bx = BX() + 40 * cos(ringRotation);
+            let by = BY() + 40 * sin(ringRotation);
+
+            if (seg == 0 && cycleTimer % 6 == 0) {
+                // 緑の茶葉螺旋
+                loop (2) {
+                    let idx = GetLoopIterator() - 1;
+                    let a = ringRotation * 57.3 + idx * 180 + cycleTimer * 3;
+                    let obj = ObjShot_Create(OBJ_SHOT);
+                    ObjShot_SetGraphic(obj, COL_YELLOWGREEN);
+                    ObjShot_SetPosition(obj, bx, by);
+                    ObjShot_SetSpeed(obj, 1.8);
+                    ObjShot_SetAngle(obj, a);
+                    ObjShot_SetIntersectionCircleToShot(obj, 3);
+                    ObjShot_SetAutoDelete(obj, true);
+                    ObjShot_Regist(obj);
+                }
+            }
+            else if (seg == 1 && cycleTimer % 14 == 0) {
+                // 琥珀の雫雨
+                let sx = rand(0, stageW);
+                task CreateDrop(sx, -10, 90, false, 100);
+            }
+            else if (seg == 2 && cycleTimer % 5 == 0) {
+                // 白いミルク渦
+                let a = ringRotation * 57.3 + cycleTimer * 4;
+                let obj = ObjShot_Create(OBJ_SHOT);
+                ObjShot_SetGraphic(obj, COL_MILKWHITE);
+                ObjShot_SetPosition(obj, bx, by);
+                ObjShot_SetSpeed(obj, 1.5);
+                ObjShot_SetAngle(obj, a);
+                ObjShot_SetIntersectionCircleToShot(obj, 3);
+                ObjShot_SetAutoDelete(obj, true);
+                ObjShot_Regist(obj);
+            }
+            else if (seg == 3 && cycleTimer % 8 == 0) {
+                // 橙の火花 + 青い茶煙
+                task CreateEmber(BX(), BY(), rand(0, 360), 50, 90);
+                CreateSmokeBullet(BX() + 60 * cos(cycleTimer), BY() + 60 * sin(cycleTimer), 1, cycleTimer);
+            }
+
+            // 体力70%以下: 各周期末尾に泡弾(対角に切れ目)
+            if (rate <= 70 && cycleTimer == cycleLen - 1) {
+                let gap = rand(0, 360);
+                loop (12) {
+                    let idx = GetLoopIterator() - 1;
+                    let a = idx * 30;
+                    if (abs(fmod(a - gap + 720, 360)) < 30) { continue; }
+                    if (abs(fmod(a - gap + 540 + 720, 360)) < 30) { continue; } // 対角
+                    task CreateBubble(BX(), BY(), 100, a, 0.7, true, 100);
+                }
+            }
+        } else {
+            // 体力10%以下: 最終発狂 — ボス中央固定、茶碗型光輪七重
+            ObjEnemy_SetX(objEnemy, cx);
+            ObjEnemy_SetY(objEnemy, cy - 40);
+            FinalDesperation();
+        }
+
+        yield;
+    }
+}
+
+task FinalDesperation {
+    let t = ObjEnemy_GetInfo(objEnemy, INFO_TIMER);
+    let gapBase = t * 0.6; // 切れ目は時計回りに移動
+    let layers = 7;
+    let colArr = [COL_YELLOWGREEN, COL_MATCHA, COL_AMBER, COL_TEAL, COL_CHAR_SPARK, COL_MILKWHITE, COL_RAINBOW];
+    let spd = 0.85; // 終盤は弾速をわずかに落とす
+
+    if (t % 10 == 0) {
+        loop (layers) {
+            let li = GetLoopIterator() - 1;
+            let layerRadius = 220 - li * 26;
+            let gapAng = gapBase + li * (360 / layers);
+            let n = 10 + li;
+            loop (n) {
+                let idx = GetLoopIterator() - 1;
+                let a = idx * (360 / n);
+                if (abs(fmod(a - gapAng + 720, 360)) < (360 / n)) { continue; } // 各層の抜け道
+                let obj = ObjShot_Create(OBJ_SHOT);
+                ObjShot_SetGraphic(obj, colArr[li]);
+                ObjShot_SetPosition(obj, BX() + layerRadius * cos(a), BY() + layerRadius * sin(a));
+                ObjShot_SetSpeed(obj, spd);
+                ObjShot_SetAngle(obj, a + 180);
+                ObjShot_SetIntersectionCircleToShot(obj, 3);
+                ObjShot_SetDelay(obj, 8);
+                ObjShot_SetAutoDelete(obj, true);
+                ObjShot_Regist(obj);
+            }
+        }
+    }
+}

@@ -118,7 +118,7 @@ function Phase1_SenchaWakaba() {
 
     phaseActive = false;
     Wait(6);
-    ascent(i in 0..length(leafRingArr)) {
+    ascent(i in 0..12) {
         if (!Obj_IsDeleted(leafRingArr[i])) { Obj_Delete(leafRingArr[i]); }
     }
 }
@@ -128,7 +128,7 @@ task Phase1_LeafRingTask() {
     while (phaseActive) {
         let bx = ObjMove_GetX(enemy);
         let by = ObjMove_GetY(enemy);
-        ascent(i in 0..length(leafRingArr)) {
+        ascent(i in 0..12) {
             if (!Obj_IsDeleted(leafRingArr[i])) {
                 let a = ang + i * 30;
                 ObjMove_SetX(leafRingArr[i], bx + 44 * cos(a));
@@ -223,13 +223,13 @@ task Phase2_RingTask() {
         let by = ObjMove_GetY(enemy);
         ascent(i in 0..10) {
             let a = ringPhaseAngle + i * 36;
-            if (abs(AngleDiff(a, ringGapAngle)) > 18) {
+            if (absolute(AngleDiff(a, ringGapAngle)) > 18) {
                 Phase2_SpawnBubble(bx, by, a, 210, true);
             }
         }
         ascent(i in 0..14) {
             let a = ringPhaseAngle + i * (360.0 / 14.0) + 12;
-            if (abs(AngleDiff(a, ringGapAngle)) > 13) {
+            if (absolute(AngleDiff(a, ringGapAngle)) > 13) {
                 Phase2_SpawnBubble(bx, by, a, 130, false);
             }
         }
@@ -770,7 +770,7 @@ task Phase7_FinalBarrage() {
             let n = 12;
             ascent(i in 0..n) {
                 let a = i * (360.0 / n) + t * 0.3;
-                if (abs(AngleDiff(a, gap)) > 14) {
+                if (absolute(AngleDiff(a, gap)) > 14) {
                     let sx = bx + ringRadius * cos(a);
                     let sy = by + ringRadius * sin(a);
                     CreateShotA1(sx, sy, spd, a, ids[L], 20);

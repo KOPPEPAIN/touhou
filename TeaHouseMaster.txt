@@ -55,20 +55,20 @@ let PHASE_NAME = ["", "煎茶・若葉の渦", "抹茶・泡沫翠環", "紅茶�
 // 弾色 (弾グラフィックが無い環境向けに CreateShotA1 の色番号を使用)
 // 0:赤 1:紫 2:青 3:緑 4:黄 5:橙 6:桃 7:灰 8:シアン 9:白 10:虹
 // ------------------------------------------------------------
-const COL_YELLOWGREEN = 4;
-const COL_DEEPGREEN   = 3;
-const COL_GOLD        = 4;
-const COL_MATCHA      = 3;
-const COL_WHITEGREEN  = 9;
-const COL_AMBER       = 5;
-const COL_MILKWHITE   = 9;
-const COL_BROWN       = 5;
-const COL_TEAL        = 8;
-const COL_GRAYBLUE    = 7;
-const COL_CHAR_SPARK  = 5;
-const COL_RED_EMBER   = 0;
-const COL_PINK        = 6;
-const COL_RAINBOW     = 10;
+let COL_YELLOWGREEN = 4;
+let COL_DEEPGREEN   = 3;
+let COL_GOLD        = 4;
+let COL_MATCHA      = 3;
+let COL_WHITEGREEN  = 9;
+let COL_AMBER       = 5;
+let COL_MILKWHITE   = 9;
+let COL_BROWN       = 5;
+let COL_TEAL        = 8;
+let COL_GRAYBLUE    = 7;
+let COL_CHAR_SPARK  = 5;
+let COL_RED_EMBER   = 0;
+let COL_PINK        = 6;
+let COL_RAINBOW     = 10;
 
 // ============================================================
 // メイン制御

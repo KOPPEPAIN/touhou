@@ -5,6 +5,7 @@
 #Player[FREE]
 #Rank[ALL]
 #BGM[""]
+#include"script/default_system/Default_ShotConst.txt"
 
 // ============================================================
 //  茶館の主 ～七彩喫茶夢幻譚～ (th_dnh_ph3 用)

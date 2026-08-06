@@ -25,7 +25,7 @@
 //    task Phase7_Chakai        ... 茶会・七彩千客万来 (最終)
 // ============================================================
 
-let objEnemy = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+let objEnemy = ObjEnemy_Create();
 let objBossImg = "img/boss_placeholder.png";      // 敵グラフィック(任意で差し替え)
 let shotImgPath = "img/shot_placeholder.png";     // 弾グラフィック(任意で差し替え)
 
@@ -75,22 +75,14 @@ let COL_RAINBOW     = 10;
 // ============================================================
 @Initialize {
     // 独自の敵/弾グラフィックを使う場合はここで LoadGraphic してください。
-    // 例: LoadGraphic(objBossImg); LoadGraphic(shotImgPath);
+    // 例: LoadGraphic(objBossImg); ObjEnemy_SetGraphic(objEnemy, objBossImg);
 
-    ObjEnemy_Regist(objEnemy);
-    ObjEnemy_SetX(objEnemy, cx);
-    ObjEnemy_SetY(objEnemy, 120);
+    ObjEnemy_SetPosition(objEnemy, cx, 120);
     ObjEnemy_SetLife(objEnemy, LIFE_P1);
     ObjEnemy_SetDamageRateShot(objEnemy, 100);
     ObjEnemy_SetDamageRateSpell(objEnemy, 100);
     ObjEnemy_SetCollisionA(objEnemy, 42);
-    ObjEnemy_SetCollisionB(objEnemy, 42);
-    Obj_SetRenderPriorityI(objEnemy, 60);
-
-    // 敵グラフィックを使う場合は以下のように差し替えてください:
-    // ObjEnemy_SetGraphicRect(objEnemy, 0, 0, 64, 64);
-
-    SetAutoDeleteObject(true);
+    ObjEnemy_SetTimer(objEnemy, 0);
 
     task MainSequence;
 }
@@ -110,27 +102,27 @@ task MainSequence {
     TWait(30);
 
     Phase1_Sencha();
-    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); return; }
 
     ObjEnemy_SetLife(objEnemy, LIFE_P2);
     Phase2_Matcha();
-    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); return; }
 
     ObjEnemy_SetLife(objEnemy, LIFE_P3);
     Phase3_Koucha();
-    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); return; }
 
     ObjEnemy_SetLife(objEnemy, LIFE_P4);
     Phase4_Oolong();
-    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); return; }
 
     ObjEnemy_SetLife(objEnemy, LIFE_P5);
     Phase5_Houjicha();
-    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); return; }
 
     ObjEnemy_SetLife(objEnemy, LIFE_P6);
     Phase6_MilkTea();
-    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); }
+    if (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) <= 0) { Finish(); return; }
 
     ObjEnemy_SetLife(objEnemy, LIFE_P7);
     Phase7_Chakai();
@@ -139,8 +131,9 @@ task MainSequence {
 }
 
 function Finish {
-    DeleteShotAll(TYPE_SHOT, TYPE_IMMEDIATE);
+    DeleteShotAll(TYPE_ALL, TYPE_IMMEDIATE);
     ObjEnemy_SetLife(objEnemy, 0);
+    Obj_Delete(objEnemy);
 }
 
 // 体力割合(0-100)を返す

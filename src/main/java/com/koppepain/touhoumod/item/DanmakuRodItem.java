@@ -2,11 +2,12 @@ package com.koppepain.touhoumod.item;
 
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
+import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
@@ -16,12 +17,6 @@ import com.koppepain.touhoumod.danmaku.DanmakuPattern;
  * A player-usable "danmaku rod": right-click to unleash a ring of danmaku
  * bullets outward from the player, in the same style as {@link
  * com.koppepain.touhoumod.entity.YukkuriEntity}'s attack.
- *
- * NOTE: {@code Item#use} returns {@link ActionResult} directly (rather than
- * {@code TypedActionResult<ItemStack>}) as of the 1.21 item-interaction
- * refactor. If your mappings still use the older signature, change the
- * return type back to {@code TypedActionResult<ItemStack>} and wrap the
- * result accordingly.
  */
 public class DanmakuRodItem extends Item {
 	private static final int COOLDOWN_TICKS = 20;
@@ -34,9 +29,11 @@ public class DanmakuRodItem extends Item {
 	}
 
 	@Override
-	public ActionResult use(World world, PlayerEntity user, Hand hand) {
+	public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
+		ItemStack stack = user.getStackInHand(hand);
+
 		if (user.getItemCooldownManager().isCoolingDown(this)) {
-			return ActionResult.FAIL;
+			return TypedActionResult.fail(stack);
 		}
 
 		if (world instanceof ServerWorld serverWorld) {
@@ -54,6 +51,6 @@ public class DanmakuRodItem extends Item {
 		}
 
 		user.swingHand(hand, true);
-		return ActionResult.SUCCESS;
+		return TypedActionResult.success(stack);
 	}
 }

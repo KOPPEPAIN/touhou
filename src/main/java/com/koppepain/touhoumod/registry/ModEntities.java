@@ -1,6 +1,5 @@
 package com.koppepain.touhoumod.registry;
 
-import net.minecraft.entity.EntityDimensions;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnGroup;
 import net.minecraft.registry.Registries;
@@ -28,7 +27,7 @@ public final class ModEntities {
 			Registries.ENTITY_TYPE,
 			YUKKURI_KEY,
 			EntityType.Builder.create(YukkuriEntity::new, SpawnGroup.CREATURE)
-					.dimensions(EntityDimensions.fixed(0.9f, 0.6f))
+					.dimensions(0.9f, 0.6f)
 					.maxTrackingRange(48)
 					.trackingTickInterval(3)
 					.build(YUKKURI_KEY));
@@ -39,7 +38,7 @@ public final class ModEntities {
 			Registries.ENTITY_TYPE,
 			DANMAKU_BULLET_KEY,
 			EntityType.Builder.<DanmakuBulletEntity>create(DanmakuBulletEntity::new, SpawnGroup.MISC)
-					.dimensions(EntityDimensions.fixed(0.25f, 0.25f))
+					.dimensions(0.25f, 0.25f)
 					.maxTrackingRange(64)
 					.trackingTickInterval(1)
 					.build(DANMAKU_BULLET_KEY));

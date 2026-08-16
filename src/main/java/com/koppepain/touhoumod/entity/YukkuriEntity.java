@@ -47,10 +47,10 @@ public class YukkuriEntity extends HostileEntity {
 
 	public static DefaultAttributeContainer.Builder createYukkuriAttributes() {
 		return HostileEntity.createHostileAttributes()
-				.add(EntityAttributes.MAX_HEALTH, 20.0)
-				.add(EntityAttributes.MOVEMENT_SPEED, 0.2)
-				.add(EntityAttributes.FOLLOW_RANGE, 24.0)
-				.add(EntityAttributes.ATTACK_DAMAGE, 2.0);
+				.add(EntityAttributes.GENERIC_MAX_HEALTH, 20.0)
+				.add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.2)
+				.add(EntityAttributes.GENERIC_FOLLOW_RANGE, 24.0)
+				.add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 2.0);
 	}
 
 	@Override
@@ -76,13 +76,13 @@ public class YukkuriEntity extends HostileEntity {
 	}
 
 	@Override
-	protected void writeCustomDataToNbt(NbtCompound nbt) {
+	public void writeCustomDataToNbt(NbtCompound nbt) {
 		super.writeCustomDataToNbt(nbt);
 		nbt.putInt("DanmakuColor", this.getDanmakuColor());
 	}
 
 	@Override
-	protected void readCustomDataFromNbt(NbtCompound nbt) {
+	public void readCustomDataFromNbt(NbtCompound nbt) {
 		super.readCustomDataFromNbt(nbt);
 		if (nbt.contains("DanmakuColor")) {
 			this.dataTracker.set(DANMAKU_COLOR, nbt.getInt("DanmakuColor"));

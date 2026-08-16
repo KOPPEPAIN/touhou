@@ -107,7 +107,7 @@ public class DanmakuBulletEntity extends ProjectileEntity {
 			var source = owner instanceof LivingEntity livingOwner
 					? serverWorld.getDamageSources().mobProjectile(this, livingOwner)
 					: serverWorld.getDamageSources().magic();
-			living.damage(serverWorld, source, this.damage);
+			living.damage(source, this.damage);
 		}
 		this.discard();
 	}

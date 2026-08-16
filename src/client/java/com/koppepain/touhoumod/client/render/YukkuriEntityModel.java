@@ -15,9 +15,12 @@ import com.koppepain.touhoumod.TouhouMod;
 import com.koppepain.touhoumod.entity.YukkuriEntity;
 
 /**
- * A simple flattened "pancake" box model - matching the round, squashed
- * silhouette of the yukkuri fan-art style - with a gentle idle bob. The face
- * itself lives entirely in the texture (see {@code textures/entity/yukkuri.png}).
+ * A rounded, domed "yukkuri" body - three stacked boxes shrinking toward the
+ * top approximate a squashed hemisphere, with two tiny stub arms poking out
+ * the sides (the iconic tiny-limbed yukkuri silhouette). The character's
+ * face/hair/accessory colouring lives entirely in the texture (see
+ * {@code textures/entity/yukkuri/*.png}), painted onto the topmost box like
+ * the flat painted-on faces of the original fan-art style.
  */
 public class YukkuriEntityModel extends SinglePartEntityModel<YukkuriEntity> {
 	public static final EntityModelLayer LAYER =
@@ -33,13 +36,23 @@ public class YukkuriEntityModel extends SinglePartEntityModel<YukkuriEntity> {
 
 	public static TexturedModelData getTexturedModelData() {
 		ModelData modelData = new ModelData();
-		ModelPartData rootData = modelData.getRoot();
-		rootData.addChild("body",
+		ModelPartData root = modelData.getRoot();
+
+		ModelPartData body = root.addChild("body",
 				ModelPartBuilder.create()
-						.uv(0, 0)
-						.cuboid(-6.0f, -4.0f, -6.0f, 12.0f, 4.0f, 12.0f),
-				ModelTransform.pivot(0.0f, 20.0f, 0.0f));
-		return TexturedModelData.of(modelData, 64, 32);
+						.uv(0, 0).cuboid(-7.0f, -2.0f, -7.0f, 14.0f, 2.0f, 14.0f)
+						.uv(0, 24).cuboid(-6.0f, -5.0f, -6.0f, 12.0f, 3.0f, 12.0f)
+						.uv(0, 44).cuboid(-4.0f, -8.0f, -4.0f, 8.0f, 3.0f, 8.0f),
+				ModelTransform.pivot(0.0f, 22.0f, 0.0f));
+
+		body.addChild("left_arm",
+				ModelPartBuilder.create().uv(48, 0).cuboid(-2.0f, -1.0f, -2.0f, 2.0f, 2.0f, 4.0f),
+				ModelTransform.pivot(-8.0f, -4.0f, 0.0f));
+		body.addChild("right_arm",
+				ModelPartBuilder.create().uv(48, 8).cuboid(0.0f, -1.0f, -2.0f, 2.0f, 2.0f, 4.0f),
+				ModelTransform.pivot(8.0f, -4.0f, 0.0f));
+
+		return TexturedModelData.of(modelData, 64, 64);
 	}
 
 	@Override
@@ -49,7 +62,7 @@ public class YukkuriEntityModel extends SinglePartEntityModel<YukkuriEntity> {
 
 	@Override
 	public void setAngles(YukkuriEntity entity, float limbAngle, float limbDistance, float animationProgress, float headYaw, float headPitch) {
-		this.body.pivotY = 20.0f + MathHelper.sin(animationProgress * 0.2f) * 0.6f;
+		this.body.pivotY = 22.0f + MathHelper.sin(animationProgress * 0.2f) * 0.6f;
 		this.body.yaw = headYaw * ((float) Math.PI / 180F);
 	}
 }

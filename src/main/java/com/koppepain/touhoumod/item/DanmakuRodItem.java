@@ -19,9 +19,9 @@ import com.koppepain.touhoumod.danmaku.DanmakuPattern;
  * com.koppepain.touhoumod.entity.YukkuriEntity}'s attack.
  */
 public class DanmakuRodItem extends Item {
-	private static final int COOLDOWN_TICKS = 20;
-	private static final int BULLET_COUNT = 12;
-	private static final float BULLET_SPEED = 0.5f;
+	private static final int COOLDOWN_TICKS = 15;
+	private static final int BULLET_COUNT = 20;
+	private static final float BULLET_SPEED = 0.55f;
 	private static final int BULLET_COLOR = 0x66E0FF;
 
 	public DanmakuRodItem(Settings settings) {
@@ -43,7 +43,8 @@ public class DanmakuRodItem extends Item {
 			Vec3d look = user.getRotationVec(1.0f);
 			Vec3d target = new Vec3d(x, y, z).add(look.multiply(4.0));
 
-			DanmakuPattern.aimedSpread(serverWorld, user, target, x, y, z, BULLET_COUNT, BULLET_SPEED, 70.0f, BULLET_COLOR);
+			DanmakuPattern.aimedSpread(serverWorld, user, target, x, y, z, BULLET_COUNT, BULLET_SPEED, 80.0f, BULLET_COLOR);
+			DanmakuPattern.aimedSpread(serverWorld, user, target, x, y, z, BULLET_COUNT / 2, BULLET_SPEED * 1.3f, 40.0f, BULLET_COLOR);
 
 			world.playSound(null, user.getBlockPos(), SoundEvents.ENTITY_ILLUSIONER_CAST_SPELL,
 					SoundCategory.PLAYERS, 0.8f, 1.4f);

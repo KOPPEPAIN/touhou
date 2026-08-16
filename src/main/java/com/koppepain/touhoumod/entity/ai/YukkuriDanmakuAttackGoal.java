@@ -5,19 +5,35 @@ import java.util.EnumSet;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.Vec3d;
 
 import com.koppepain.touhoumod.danmaku.DanmakuPattern;
 import com.koppepain.touhoumod.entity.YukkuriEntity;
 
 /**
- * Makes a {@link YukkuriEntity} periodically fire a ring danmaku pattern at
- * its current attack target, alternating with slow rotating "spiral" bursts
- * once it has been fighting for a while - a small nod to Touhou boss
- * non-spell/spell-card pacing.
+ * Makes a {@link YukkuriEntity} cycle through three increasingly dense
+ * danmaku "phases" while fighting - a small nod to Touhou boss spell-card
+ * pacing:
+ * <ol>
+ *   <li>a double ring burst (two overlapping rings of bullets)</li>
+ *   <li>a fast rotating spiral</li>
+ *   <li>aimed spread volleys at the target</li>
+ * </ol>
+ * ...then loops back to the start for as long as the fight continues.
  */
 public class YukkuriDanmakuAttackGoal extends Goal {
-	private static final int RING_INTERVAL = 50;
-	private static final int SPIRAL_SWITCH_TICKS = 200;
+	private static final int CYCLE_LENGTH = 320;
+	private static final int RING_PHASE_END = 150;
+	private static final int SPIRAL_PHASE_END = 260;
+
+	private static final int RING_BULLET_COUNT = 24;
+	private static final int RING_INTERVAL = 25;
+
+	private static final int SPIRAL_ARMS = 6;
+	private static final int SPIRAL_INTERVAL = 3;
+
+	private static final int AIMED_BULLET_COUNT = 14;
+	private static final int AIMED_INTERVAL = 18;
 
 	private final YukkuriEntity yukkuri;
 	private int cooldown;
@@ -70,13 +86,19 @@ public class YukkuriDanmakuAttackGoal extends Goal {
 		double y = this.yukkuri.getY() + this.yukkuri.getHeight() * 0.5;
 		double z = this.yukkuri.getZ();
 		int color = this.yukkuri.getDanmakuColor();
+		int phase = this.fightTicks % CYCLE_LENGTH;
 
-		if (this.fightTicks < SPIRAL_SWITCH_TICKS) {
-			DanmakuPattern.ring(serverWorld, this.yukkuri, x, y, z, 16, 0.35f, color);
+		if (phase < RING_PHASE_END) {
+			DanmakuPattern.ring(serverWorld, this.yukkuri, x, y, z, RING_BULLET_COUNT, 0.35f, color);
+			DanmakuPattern.ring(serverWorld, this.yukkuri, x, y, z, RING_BULLET_COUNT, 0.22f, color);
 			this.cooldown = RING_INTERVAL;
+		} else if (phase < SPIRAL_PHASE_END) {
+			DanmakuPattern.spiralStep(serverWorld, this.yukkuri, x, y, z, SPIRAL_ARMS, 0.3f, color, this.fightTicks, 10.0);
+			this.cooldown = SPIRAL_INTERVAL;
 		} else {
-			DanmakuPattern.spiralStep(serverWorld, this.yukkuri, x, y, z, 3, 0.3f, color, this.fightTicks, 12.0);
-			this.cooldown = 4;
+			Vec3d targetPos = new Vec3d(target.getX(), target.getEyeY(), target.getZ());
+			DanmakuPattern.aimedSpread(serverWorld, this.yukkuri, targetPos, x, y, z, AIMED_BULLET_COUNT, 0.45f, 60.0f, color);
+			this.cooldown = AIMED_INTERVAL;
 		}
 	}
 }

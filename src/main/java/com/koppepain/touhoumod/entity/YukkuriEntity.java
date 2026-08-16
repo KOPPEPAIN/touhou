@@ -23,26 +23,45 @@ import net.minecraft.world.World;
 import com.koppepain.touhoumod.entity.ai.YukkuriDanmakuAttackGoal;
 
 /**
- * "Yukkuri" - a small, round, flattened creature (an original-art homage to
- * the long-running Japanese "yukkuri" internet fan meme) that wanders
- * peacefully until provoked, at which point it unleashes danmaku bullet
- * patterns at its target like a miniature Touhou stage boss.
+ * "Yukkuri" - a small, round creature (an original-art homage to the
+ * long-running Japanese "yukkuri" internet fan meme, itself a simplified,
+ * squashed-face take on Touhou Project characters) that wanders peacefully
+ * until provoked, at which point it unleashes danmaku bullet patterns at its
+ * target like a miniature Touhou stage boss.
+ *
+ * Each yukkuri spawns as one of a few stylised, simplified character
+ * "flavours" ({@link Variant}) that pick both its texture and the colour of
+ * the danmaku it fires.
  */
 public class YukkuriEntity extends HostileEntity {
-	private static final TrackedData<Integer> DANMAKU_COLOR =
-			DataTracker.registerData(YukkuriEntity.class, TrackedDataHandlerRegistry.INTEGER);
+	/** Simplified, stylised character flavour - not a 1:1 likeness of any official artwork. */
+	public enum Variant {
+		REIMU("reimu", 0xFF3B3B),
+		MARISA("marisa", 0xFFC64D),
+		CIRNO("cirno", 0x4DD2FF),
+		GENERIC("generic", 0xCC99FF);
 
-	private static final int[] PALETTE = {
-			0xFF6699, // pink (Reimu-ish)
-			0xFFD24D, // yellow (Marisa-ish)
-			0x66CCFF, // cyan (Cirno-ish)
-			0xCC99FF  // purple
-	};
+		public final String id;
+		public final int danmakuColor;
+
+		Variant(String id, int danmakuColor) {
+			this.id = id;
+			this.danmakuColor = danmakuColor;
+		}
+
+		public static Variant byIndex(int index) {
+			Variant[] values = values();
+			return values[Math.floorMod(index, values.length)];
+		}
+	}
+
+	private static final TrackedData<Integer> VARIANT =
+			DataTracker.registerData(YukkuriEntity.class, TrackedDataHandlerRegistry.INTEGER);
 
 	public YukkuriEntity(EntityType<? extends HostileEntity> entityType, World world) {
 		super(entityType, world);
 		this.experiencePoints = 8;
-		this.dataTracker.set(DANMAKU_COLOR, PALETTE[this.random.nextInt(PALETTE.length)]);
+		this.dataTracker.set(VARIANT, this.random.nextInt(Variant.values().length));
 	}
 
 	public static DefaultAttributeContainer.Builder createYukkuriAttributes() {
@@ -68,24 +87,28 @@ public class YukkuriEntity extends HostileEntity {
 	@Override
 	protected void initDataTracker(DataTracker.Builder builder) {
 		super.initDataTracker(builder);
-		builder.add(DANMAKU_COLOR, PALETTE[0]);
+		builder.add(VARIANT, Variant.GENERIC.ordinal());
+	}
+
+	public Variant getVariant() {
+		return Variant.byIndex(this.dataTracker.get(VARIANT));
 	}
 
 	public int getDanmakuColor() {
-		return this.dataTracker.get(DANMAKU_COLOR);
+		return this.getVariant().danmakuColor;
 	}
 
 	@Override
 	public void writeCustomDataToNbt(NbtCompound nbt) {
 		super.writeCustomDataToNbt(nbt);
-		nbt.putInt("DanmakuColor", this.getDanmakuColor());
+		nbt.putInt("YukkuriVariant", this.getVariant().ordinal());
 	}
 
 	@Override
 	public void readCustomDataFromNbt(NbtCompound nbt) {
 		super.readCustomDataFromNbt(nbt);
-		if (nbt.contains("DanmakuColor")) {
-			this.dataTracker.set(DANMAKU_COLOR, nbt.getInt("DanmakuColor"));
+		if (nbt.contains("YukkuriVariant")) {
+			this.dataTracker.set(VARIANT, nbt.getInt("YukkuriVariant"));
 		}
 	}
 

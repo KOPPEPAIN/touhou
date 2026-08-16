@@ -18,7 +18,7 @@ public final class ModEntities {
 			Registries.ENTITY_TYPE,
 			Identifier.of(TouhouMod.MOD_ID, "yukkuri"),
 			EntityType.Builder.create(YukkuriEntity::new, SpawnGroup.CREATURE)
-					.dimensions(0.9f, 0.6f)
+					.dimensions(1.0f, 0.75f)
 					.maxTrackingRange(48)
 					.trackingTickInterval(3)
 					.build("yukkuri"));

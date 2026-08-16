@@ -1,7 +1,7 @@
 package com.koppepain.touhoumod;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.entity.FabricDefaultAttributeRegistry;
+import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

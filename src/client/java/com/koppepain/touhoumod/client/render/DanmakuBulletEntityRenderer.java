@@ -65,7 +65,6 @@ public class DanmakuBulletEntityRenderer extends EntityRenderer<DanmakuBulletEnt
 		buffer.vertex(matrix, x, y, 0.0f)
 				.color(r, g, b, 1.0f)
 				.texture(u, v)
-				.light(FULL_BRIGHT)
-				.next();
+				.light(FULL_BRIGHT);
 	}
 }

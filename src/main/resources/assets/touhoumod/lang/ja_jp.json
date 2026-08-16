@@ -1,0 +1,8 @@
+{
+	"entity.touhoumod.yukkuri": "ゆっくり",
+	"entity.touhoumod.danmaku_bullet": "弾幕の弾",
+	"item.touhoumod.danmaku_rod": "弾幕の杖",
+	"itemGroup.touhoumod": "東方ゆっくり弾幕",
+	"subtitles.entity.touhoumod.yukkuri.ambient": "ゆっくりが揺れる音",
+	"subtitles.entity.touhoumod.danmaku_rod.use": "弾幕の杖を発動"
+}

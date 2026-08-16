@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "touhoumod",
+	"version": "${version}",
+	"name": "Touhou Yukkuri Danmaku",
+	"description": "ゆっくりたちと弾幕(danmaku)システムを追加するMOD。弾はカスタムコアシェーダーで発光表現されます。",
+	"authors": [
+		"koppepain"
+	],
+	"contact": {
+		"repo": "https://github.com/koppepain/touhou"
+	},
+	"license": "MIT",
+	"icon": "assets/touhoumod/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.koppepain.touhoumod.TouhouMod"
+		],
+		"client": [
+			"com.koppepain.touhoumod.client.TouhouModClient"
+		]
+	},
+	"mixins": [],
+	"depends": {
+		"fabricloader": ">=0.15.0",
+		"fabric-api": "*",
+		"minecraft": "~1.21.1",
+		"java": ">=21"
+	}
+}

@@ -1,0 +1,8 @@
+{
+	"entity.touhoumod.yukkuri": "Yukkuri",
+	"entity.touhoumod.danmaku_bullet": "Danmaku Bullet",
+	"item.touhoumod.danmaku_rod": "Danmaku Rod",
+	"itemGroup.touhoumod": "Touhou Yukkuri Danmaku",
+	"subtitles.entity.touhoumod.yukkuri.ambient": "Yukkuri wobbles",
+	"subtitles.entity.touhoumod.danmaku_rod.use": "Danmaku rod fires"
+}
